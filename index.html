@@ -703,6 +703,9 @@
   .diff-note{font-size:0.75rem;color:var(--muted);margin-top:6px;line-height:1.5;}
   /* ---- 산업안전기사 병합 앱 추가 스타일 ---- */
   .toast{position:fixed;left:50%;bottom:90px;transform:translate(-50%,20px);background:rgba(20,20,24,0.92);color:#fff;padding:10px 18px;border-radius:10px;font-size:0.85rem;font-weight:600;opacity:0;pointer-events:none;transition:opacity 0.25s ease, transform 0.25s ease;z-index:999;}
+  .version-update-banner{position:fixed;left:0;right:0;top:0;z-index:100000;background:#164a5e;color:#fff;display:flex;align-items:center;justify-content:center;gap:14px;padding:11px 16px;font-size:0.85rem;font-weight:700;box-shadow:0 2px 10px rgba(0,0,0,0.2);}
+  .version-update-banner .vub-text{cursor:pointer;text-decoration:underline;text-underline-offset:3px;}
+  .version-update-banner .vub-close{cursor:pointer;opacity:0.75;font-weight:400;padding:0 4px;}
   .toast.show{opacity:1;transform:translate(-50%,0);}
   .tag.pts{background:var(--rose-soft,#f5e6df);color:var(--rose,#a1503c);}
   .swipe-hint{text-align:center;font-size:0.72rem;color:var(--muted);margin-top:10px;opacity:0.7;}
@@ -1027,7 +1030,7 @@
        세 가지 다 파일을 건드릴 때마다 이 주석부터 확인할 것.
    [3] 엔진 수정 후에는 곧바로 배포본을 만들지 말고, 무엇을 고쳤는지 먼저 설명하고
        사용자 컨펌을 받은 뒤에만 배포본(들)을 새로 만든다. */
-const APP_VERSION = "2026.08.24_12:42";
+const APP_VERSION = "2026.08.26_23:29";
 
 /* ============ PWA 설치(앱처럼 구동) ============ */
 (function(){
@@ -1817,6 +1820,10 @@ const PEN_TOOL_PRESETS = {
 let penEverUsedGlobal = false;
 let penInputModeGlobal = "auto"; // 'auto' | 'penOnly' | 'touch' — 세션 동안 유지되는 필기 입력 인식 모드
 let currentPenResync = null; // 지금 카드의 필기 캔버스를 다시 측정+다시 그리는 함수(탭 전환/화면 크기 변경 시 호출)
+let voiceStudyAutoListening = false; // 음성학습모드가 지금 자동으로 듣고 있는 중인지(수동 녹음 버튼과 충돌 방지용)
+let wasKbdFocusedBeforeRender = false; // 카드를 다시 그리기 직전, 키보드 입력창에 실제로 포커스가 있었는지
+let hasFinePointer = false;
+try{ hasFinePointer = window.matchMedia && window.matchMedia("(pointer: fine)").matches; }catch(e){}
 let penResyncDebounce = null;
 window.addEventListener("resize", ()=>{
   // 브라우저 창 크기(또는 화면 회전)가 바뀌면 캔버스의 실제 픽셀 버퍼 크기도 다시 맞춰야
@@ -1834,13 +1841,18 @@ function setupPracticeTabs(q){
     voice: document.getElementById("practicePanelVoice")
   };
   const btns = Array.from(tabBar.querySelectorAll(".practice-tab-btn"));
-  function activate(tab){
+  function activate(tab, isUserClick){
     const wasPenHidden = panels.pen && panels.pen.style.display === "none";
     lastPracticeTabGlobal = tab;
     btns.forEach(b=> b.classList.toggle("active", b.dataset.tab===tab));
     Object.entries(panels).forEach(([k,el])=>{ if(el) el.style.display = (k===tab) ? "" : "none"; });
-    // 키보드연습장이 표시될 때는(처음 로딩 포함) 바로 타이핑할 수 있도록 입력창에 포커스한다.
-    if(tab === "kbd"){
+    // 키보드연습장 자동 포커스: 화면을 뒤덮는 문제 때문에 무조건 포커스하지 않는다.
+    // - 탭을 "직접 눌러서" 열었을 때는(명시적 행동이니) 항상 포커스한다.
+    // - 문제를 넘기다가 자동으로 이 탭이 뜬 경우엔, PC/트랙패드가 있는 기기(터치 전용 폰이 아닌 경우)
+    //   이거나, 직전 문제에서 실제로 입력창에 커서가 있던 채로(물리 키보드로 계속 타이핑 중) 넘어온
+    //   경우에만 포커스한다. 그래야 폰에서 문제 넘길 때마다 화면 절반을 가리는 가상 키보드가
+    //   원치 않게 계속 튀어나오는 걸 막을 수 있다.
+    if(tab === "kbd" && (isUserClick || hasFinePointer || wasKbdFocusedBeforeRender)){
       const ta = document.getElementById("kbdPadTextarea");
       if(ta) setTimeout(()=> ta.focus(), 0);
     }
@@ -1850,9 +1862,9 @@ function setupPracticeTabs(q){
       requestAnimationFrame(()=> currentPenResync());
     }
   }
-  btns.forEach(b=> b.addEventListener("click", ()=> activate(b.dataset.tab)));
+  btns.forEach(b=> b.addEventListener("click", ()=> activate(b.dataset.tab, true)));
   // 음성학습모드 중일 때는 문제가 바뀔 때마다 음성연습장을 자동으로 띄운다.
-  activate(state.studyMode === "voice" ? "voice" : lastPracticeTabGlobal);
+  activate(state.studyMode === "voice" ? "voice" : lastPracticeTabGlobal, false);
   setupPenCanvas(q);
   setupKeyboardPad(q);
   setupVoicePad(q);
@@ -1877,6 +1889,82 @@ function setupKeyboardPad(q){
 }
 /* ---- 음성 연습장: STT(음성 인식)로 답변을 받아쓰고, 필요하면 TTS로 문제를 먼저 읽어준다.
    브라우저 Web Speech API(webkitSpeechRecognition) 지원 여부에 따라 자동으로 켜지거나 숨겨진다. ---- */
+/* ---- 음성인식 오류 코드를 사람이 이해할 수 있는 메시지로 바꾼다.
+   no-speech/aborted는 계속듣기 모드에서 흔히 나는 정상적인 상황이라 오류로 취급하지 않는다.
+   진짜 문제(권한/마이크/네트워크)일 때만 사용자에게 구체적으로 알려주고 멈춘다. ---- */
+function voiceErrorInfo(code){
+  switch(code){
+    case "no-speech":
+    case "aborted":
+      return {fatal:false, msg:null};
+    case "audio-capture":
+      return {fatal:true, msg:"🎙️ 마이크를 찾을 수 없어요. 다른 앱이 마이크를 쓰고 있지 않은지 확인해주세요."};
+    case "not-allowed":
+    case "service-not-allowed":
+      return {fatal:true, msg:"🎙️ 마이크 권한이 꺼져있어요. 브라우저(또는 앱) 설정에서 이 사이트의 마이크 권한을 허용해주세요."};
+    case "network":
+      return {fatal:true, msg:"🎙️ 네트워크 연결을 확인해주세요. 음성인식은 인터넷 연결이 필요해요."};
+    default:
+      return {fatal:true, msg:`🎙️ 음성 인식 오류(${code||"알수없음"})가 발생했어요. 다시 시도해주세요.`};
+  }
+}
+/* ---- 음성인식 세션이 짧게 끊겼다 재시작될 때, 마이크 버퍼가 덜 비워진 채로 겹쳐서
+   직전 세션과 내용이 겹치는 문장을 다시 인식하는 경우가 있다(예: "나도" → "나도 몰라" →
+   "나도 몰라"). 새 세그먼트를 그냥 추가하지 않고, 직전 세그먼트와의 포함 관계를 먼저 확인해서
+   완전 중복은 버리고, 이전 내용을 포함하는 확장판이면 교체한다. ---- */
+/* ---- 표현이 살짝 다르게(예: "믹스"→"맥스") 다시 인식된 경우까지 잡기 위해,
+   완전 일치/포함관계가 아니어도 "단어 대부분이 겹치면 사실상 같은 말"로 본다. ---- */
+function wordOverlapRatio(a, b){
+  const wa = a.split(/\s+/).filter(Boolean);
+  const wb = b.split(/\s+/).filter(Boolean);
+  if(!wa.length || !wb.length) return 0;
+  const setA = new Set(wa);
+  let common = 0;
+  wb.forEach(w=>{ if(setA.has(w)) common++; });
+  return common / Math.max(wa.length, wb.length);
+}
+const VOICE_DUP_OVERLAP_THRESHOLD = 0.6; // 단어의 60% 이상 겹치면 "같은 말 다시 말한 것"으로 본다
+function pushVoiceSegment(segments, newSeg){
+  const seg = (newSeg||"").trim();
+  if(!seg) return;
+  if(!segments.length){ segments.push(seg); return; }
+  const last = segments[segments.length-1];
+  const lastNorm = last.replace(/\s+/g,"");
+  const segNorm = seg.replace(/\s+/g,"");
+  if(segNorm === lastNorm) return; // 완전히 같은 내용 → 버림
+  if(segNorm.includes(lastNorm)){ segments[segments.length-1] = seg; return; } // 이전 내용을 포함하는 확장판 → 교체
+  if(lastNorm.includes(segNorm)) return; // 이전 내용의 부분집합(더 짧게 잘린 것) → 버림
+  if(wordOverlapRatio(last, seg) >= VOICE_DUP_OVERLAP_THRESHOLD){
+    // 표현은 조금 다르지만 사실상 같은 말을 다시 한 것 → 더 긴(더 자세한) 쪽으로 교체
+    segments[segments.length-1] = seg.length >= last.length ? seg : last;
+    return;
+  }
+  segments.push(seg);
+}
+/* ---- 세션 "안에서도" 일부 기기(특히 안드로이드 크롬 계열)는 e.results에 같은 말을
+   점점 길어지는 여러 개의 확정(isFinal) 조각으로 반복해서 채워넣는 경우가 있다
+   ("그걸로" → "그걸로 한" → "그걸로 한 거구나" 처럼 매번 처음부터 다시).
+   단순히 다 이어붙이면 그대로 중복되므로, pushVoiceSegment와 같은 포함관계 판단으로
+   한 세션 안의 조각들도 병합한다. ---- */
+function mergeGrowingPieces(pieces){
+  let acc = "";
+  for(const raw of pieces){
+    const piece = (raw||"").trim();
+    if(!piece) continue;
+    if(!acc){ acc = piece; continue; }
+    const accNorm = acc.replace(/\s+/g,"");
+    const pieceNorm = piece.replace(/\s+/g,"");
+    if(pieceNorm === accNorm) continue;
+    if(pieceNorm.includes(accNorm)){ acc = piece; continue; } // 확장판 → 교체
+    if(accNorm.includes(pieceNorm)) continue; // 부분집합 → 버림
+    if(wordOverlapRatio(acc, piece) >= VOICE_DUP_OVERLAP_THRESHOLD){
+      acc = piece.length >= acc.length ? piece : acc; // 표현만 다른 재인식 → 더 긴 쪽 채택
+      continue;
+    }
+    acc += (acc?" ":"") + piece; // 진짜 별개의 문장 → 이어붙임
+  }
+  return acc;
+}
 function setupVoicePad(q){
   const ta = document.getElementById("voicePadTextarea");
   const clearBtn = document.getElementById("voicePadClearBtn");
@@ -1902,36 +1990,61 @@ function setupVoicePad(q){
   } else {
     let recognizing = false;
     let recognizer = null;
-    let committedText = ""; // 이미 확정된 텍스트(녹음 시작 전 기존 값 + 지금까지 확정된 문장들)
+    let baseText = ""; // 녹음 시작 전 입력창에 이미 있던 텍스트
+    let finalSegments = []; // 인식 세션이 끝날 때마다 "그 세션이 확정한 문장"을 하나씩 통째로 담는다
+    let restartCount = 0; // 재시작할 때마다 안드로이드의 시작/종료 알림음("삑삑")이 들리므로,
+                           // 재시작이 계속 이어지면 텀을 점점 늘려서 그 소리 빈도 자체를 줄인다.
+    const nextRestartDelay = ()=> Math.min(800 + restartCount*600, 2600);
+    const renderText = (sessionFinal, sessionInterim)=>{
+      // 화면에 보여줄 텍스트는 매번 (기존 텍스트 + 확정된 세그먼트들 + 지금 세션의 확정/중간 결과)를
+      // 처음부터 다시 조립한다. ta.value를 읽어서 그 위에 또 쌓지 않기 때문에(이전 방식의 문제),
+      // 세션이 여러 번 끊겼다 이어져도 같은 말이 중복으로 쌓이지 않는다.
+      const parts = [baseText.trim(), ...finalSegments, sessionFinal].filter(Boolean);
+      let text = parts.join(" ");
+      if(sessionInterim) text += (text?" ":"") + sessionInterim;
+      ta.value = text;
+      state.voiceMemos[q.id] = text;
+    };
     const startSession = ()=>{
       recognizer = new SR();
       recognizer.lang = "ko-KR";
       recognizer.interimResults = true;
       recognizer.continuous = true;
+      let sessionFinal = "", sessionInterim = "";
       recognizer.onresult = (e)=>{
-        let finalTxt = "", interimTxt = "";
-        for(let i=0;i<e.results.length;i++){
-          const r = e.results[i];
-          if(r.isFinal) finalTxt += r[0].transcript;
-          else interimTxt += r[0].transcript;
+        let finalPieces = [], i = "";
+        for(let idx=0; idx<e.results.length; idx++){
+          const r = e.results[idx];
+          if(r.isFinal) finalPieces.push(r[0].transcript);
+          else i += r[0].transcript;
         }
-        ta.value = committedText + finalTxt + interimTxt;
-        state.voiceMemos[q.id] = ta.value;
+        sessionFinal = mergeGrowingPieces(finalPieces);
+        sessionInterim = i;
+        renderText(sessionFinal, sessionInterim);
       };
-      recognizer.onerror = ()=>{ if(statusEl) statusEl.textContent = "음성 인식 중 오류가 발생했어요. 다시 시도해주세요."; };
+      recognizer.onerror = (e)=>{
+        const info = voiceErrorInfo(e && e.error);
+        if(info.fatal){
+          if(statusEl) statusEl.textContent = info.msg;
+          stopRec(); // no-speech/aborted처럼 흔한 상황이 아니면(권한·마이크·네트워크 문제) 계속 듣기를 멈추고 사용자에게 알린다
+        }
+      };
       recognizer.onend = ()=>{
         if(!recognizing) return;
-        // 이 세션에서 확정된 부분을 누적해두고(끊어 말해도 앞 내용이 사라지지 않도록),
-        // 새 인식 세션을 이어서 시작한다. (브라우저가 계속듣기 모드에서도 종종 세션을 스스로 끊기 때문)
-        if(ta.value && ta.value.length > committedText.length){
-          committedText = ta.value.endsWith(" ") ? ta.value : ta.value + " ";
-        }
-        try{ startSession(); }catch(e){}
+        // 이 세션이 확정한 문장을 통째로 배열에 담아둔다(끊어 말해도 앞 내용이 사라지지 않도록).
+        if(sessionFinal) pushVoiceSegment(finalSegments, sessionFinal);
+        // 끝나자마자 바로 재시작하면 마이크 버퍼가 덜 정리된 채로 겹쳐서, 같은 말이
+        // 여러 번 중복 인식되는 문제가 있었다. 재시작 텀을 두고, 재시작이 반복될수록
+        // 그 텀을 점점 늘려서(안드로이드 알림음이 너무 잦지 않도록) 재시작 자체를 줄인다.
+        restartCount++;
+        setTimeout(()=>{ if(recognizing){ try{ startSession(); }catch(e){} } }, nextRestartDelay());
       };
       recognizer.start();
     };
     const startRec = ()=>{
-      committedText = ta.value ? (ta.value + " ") : "";
+      baseText = ta.value || "";
+      finalSegments = [];
+      restartCount = 0;
       startSession();
       recognizing = true;
       recBtn.classList.add("recording");
@@ -1946,6 +2059,12 @@ function setupVoicePad(q){
       if(statusEl) statusEl.textContent = "";
     };
     recBtn.addEventListener("click", ()=>{
+      if(voiceStudyAutoListening){
+        // 음성학습모드가 이미 자동으로 듣고 있는 중이면, 수동 녹음을 별도로 또 시작하지 않는다.
+        // (동시에 두 개의 음성인식이 마이크를 두고 충돌하면 아예 텍스트가 안 잡히는 문제가 있었음)
+        if(statusEl) statusEl.textContent = "음성학습모드가 자동으로 듣고 있어요. 별도로 누르지 않아도 돼요.";
+        return;
+      }
       if(recognizing) stopRec(); else startRec();
     });
   }
@@ -2806,25 +2925,28 @@ function sortByNo(list){
 function renderYearPicker(){
   const data = getData();
   const multiRound = datasetHasMultiRound(data);
+  const multiPart = datasetHasMultiExamPart(data);
   const combos = {};
   data.forEach(d=>{
-    const key = d.year + "-" + (d.round||1);
-    if(!combos[key]) combos[key] = {year:d.year, round:d.round||1, count:0};
+    const key = d.year + "-" + (d.round||1) + (multiPart ? "-"+d.examPart : "");
+    if(!combos[key]) combos[key] = {year:d.year, round:d.round||1, examPart:d.examPart, count:0};
     combos[key].count++;
   });
-  const comboList = Object.values(combos).sort((a,b)=> b.year-a.year || b.round-a.round);
+  const comboList = Object.values(combos).sort((a,b)=> b.year-a.year || b.round-a.round || String(a.examPart||"").localeCompare(String(b.examPart||"")));
+  const labelOf = (c)=> `${c.year}년${multiRound?" "+c.round+"회":""}${multiPart?" · "+c.examPart:""}`;
   setPageBar(multiRound ? "연도·회차별" : "연도별");
   app.innerHTML = `
     <div class="section-card">
       <h3>${multiRound ? "연도·회차를 선택하세요" : "연도를 선택하세요"}</h3>
-      <div class="chip-row chip-grid chip-grid-year">${comboList.map(c=>`<button class="chip" data-year="${c.year}" data-round="${c.round}">${c.year}년${multiRound?" "+c.round+"회":""}${repeatBadgeHtml("year", `${c.year}년${multiRound?" "+c.round+"회":""}`)}</button>`).join("")}</div>
+      ${multiPart ? `<p style="font-size:0.78rem;color:var(--muted);margin-top:2px;">필답형과 작업형은 서로 섞이지 않도록 항목이 나뉘어 있어요.</p>` : ""}
+      <div class="chip-row chip-grid chip-grid-year">${comboList.map(c=>`<button class="chip" data-year="${c.year}" data-round="${c.round}" data-part="${escapeHtml(c.examPart||"")}">${labelOf(c)}${repeatBadgeHtml("year", labelOf(c))}</button>`).join("")}</div>
     </div>
   `;
   app.querySelectorAll("[data-year]").forEach(b=>{
     b.addEventListener("click", ()=>{
-      const y = Number(b.dataset.year), r = Number(b.dataset.round);
-      const lbl = `${y}년${multiRound?" "+r+"회":""}`;
-      openModeModal(sortByNo(data.filter(q=> q.year===y && (q.round||1)===r)), "year", lbl, "year");
+      const y = Number(b.dataset.year), r = Number(b.dataset.round), p = b.dataset.part || null;
+      const lbl = labelOf({year:y, round:r, examPart:p});
+      openModeModal(sortByNo(data.filter(q=> q.year===y && (q.round||1)===r && (!multiPart || q.examPart===p))), "year", lbl, "year");
     });
   });
 }
@@ -3543,6 +3665,9 @@ function maybeCountPassiveView(){
 }
 
 function renderCard(){
+  // 새 카드로 다시 그리기 직전, 지금 실제로 키보드 입력창에 포커스가 가 있었는지(=물리 키보드로
+  // 계속 타이핑 중이었는지) 기억해둔다. DOM을 다시 그리면 이 정보가 사라지므로 미리 저장.
+  wasKbdFocusedBeforeRender = (document.activeElement && document.activeElement.id === "kbdPadTextarea");
   state.cardGraded = false; // 새 카드로 넘어오면 "이 카드는 아직 채점 안 됨" 상태로 초기화
   state.answerVisible = false; // 새 카드로 넘어오면 "정답보기" 버튼 라벨을 기본 상태로 초기화
   const studyNavBarEl0 = document.getElementById("studyNavBar");
@@ -3765,8 +3890,16 @@ let gapOnDone = null;
 let voiceStudyRecognizer = null;
 function stopVoiceStudyRecognizer(){
   if(voiceStudyRecognizer){ try{ voiceStudyRecognizer.abort(); }catch(e){} voiceStudyRecognizer = null; }
+  voiceStudyAutoListening = false;
+  // 음성학습 세션이 어디서 끊기든(문제 전환/일시정지 등) 마이크 버튼이 "녹음 중" 상태로
+  // 멈춰있지 않도록 항상 같이 되돌린다.
+  const recBtn = document.getElementById("voicePadRecBtn");
+  if(recBtn && recBtn.classList.contains("recording")){
+    recBtn.classList.remove("recording");
+    recBtn.textContent = "🎙️ 녹음 시작";
+  }
 }
-function voiceStudyListenMs(){ return state.voiceDelay*1000; } // 답변 없을 때 대기 시간(사용자가 슬라이더로 조절)
+function voiceStudyListenMs(){ return Math.max(state.voiceDelay*1000, 5000); } // 답변 없을 때 대기 시간(사용자가 슬라이더로 조절, 단 마이크 준비시간을 감안해 최소 5초는 확보)
 function voiceStudyPostAnswerGapMs(){ return state.voiceDelay*1000; } // 답변 후 정답을 읽어주기 전 대기 시간(동일 슬라이더 값 사용)
 let wakeLock = null;
 let noSleepVideo = null;
@@ -3850,8 +3983,26 @@ function speakOnce(text, callback){
   const v = pickKoreanVoice();
   if(v) utter.voice = v;
   utter.rate = 0.95;
-  utter.onend = ()=> { if(myToken===speakToken && callback) callback(); };
-  utter.onerror = ()=> { if(myToken===speakToken && callback) callback(); };
+  let done = false;
+  const finish = ()=>{
+    if(done) return;
+    done = true;
+    clearInterval(resumeHeartbeat);
+    clearTimeout(safetyTimer);
+    if(myToken===speakToken && callback) callback();
+  };
+  utter.onend = finish;
+  utter.onerror = finish;
+  // 크롬 계열 브라우저는 발화가 약 15초를 넘으면 자체 버그로 조용히 멈추면서
+  // onend/onerror를 영영 안 쏘는 경우가 있다. 주기적으로 resume()을 불러서 이를 막는다.
+  const resumeHeartbeat = setInterval(()=>{
+    if(myToken!==speakToken){ clearInterval(resumeHeartbeat); return; }
+    if(speechSynthesis.speaking) speechSynthesis.resume();
+  }, 4000);
+  // 그래도 콜백이 영영 안 오는 예외 상황을 대비한 최종 안전장치.
+  // (글자수 기반으로 넉넉하게 추정 + 최소 6초)
+  const estimatedMs = Math.max(6000, clean.length * 220);
+  const safetyTimer = setTimeout(finish, estimatedMs);
   speechSynthesis.speak(utter);
 }
 function startGap(ms, onDone){
@@ -3876,6 +4027,12 @@ function listenForVoiceAnswer(q, session){
   voicePhase = "listening";
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const statusEl = document.getElementById("voicePadStatus");
+  const recBtn = document.getElementById("voicePadRecBtn");
+  const setRecBtnRecording = (on)=>{
+    if(!recBtn) return;
+    recBtn.classList.toggle("recording", on);
+    recBtn.textContent = on ? "⏹ 녹음 중" : "🎙️ 녹음 시작";
+  };
   if(!SR){
     // 이 브라우저는 음성인식 미지원 → 예전 방식(고정 대기시간)으로 대체
     if(statusEl) statusEl.textContent = "이 브라우저는 음성인식을 지원하지 않아 고정 대기시간으로 진행해요.";
@@ -3883,18 +4040,36 @@ function listenForVoiceAnswer(q, session){
     return;
   }
   if(statusEl) statusEl.textContent = `🎙️ 답변을 들을게요 (${voiceStudyListenMs()/1000}초 이내)…`;
+  setRecBtnRecording(true);
+  voiceStudyAutoListening = true; // 수동 녹음 버튼과 동시에 두 개의 인식기가 뜨는 것을 막기 위한 표시
   let gotSpeech = false;
-  let committedText = "";
   let answered = false; // revealAndSpeakVoiceAnswer 중복 호출 방지
+  let restartCount = 0; // 재시작마다 안드로이드 알림음("삑삑")이 들리므로, 반복될수록 텀을 늘려서 빈도를 줄인다.
+  const nextRestartDelay = ()=> Math.min(800 + restartCount*600, 2600);
   const ta = document.getElementById("voicePadTextarea");
-  if(ta){ committedText = ta.value ? (ta.value + " ") : ""; }
+  const baseText = ta ? (ta.value || "") : "";
+  let finalSegments = []; // 인식 세션이 끝날 때마다 "그 세션이 확정한 문장"을 하나씩 통째로 담는다
+  const renderText = (sessionFinal, sessionInterim)=>{
+    // ta.value를 읽어서 그 위에 또 쌓지 않고, 매번 처음부터 다시 조립한다.
+    // (예전 방식은 세션이 끊겼다 이어질 때 같은 말이 중복으로 쌓이는 문제가 있었음)
+    if(!ta) return;
+    const parts = [baseText.trim(), ...finalSegments, sessionFinal].filter(Boolean);
+    let text = parts.join(" ");
+    if(sessionInterim) text += (text?" ":"") + sessionInterim;
+    ta.value = text;
+    if(!state.voiceMemos) state.voiceMemos = {};
+    state.voiceMemos[q.id] = text;
+  };
 
   const proceedToAnswer = ()=>{
     if(answered) return;
     if(voicePaused) return; // 일시정지 중이면 재개 로직에서 별도 처리
     answered = true;
     stopVoiceStudyRecognizer();
+    setRecBtnRecording(false);
+    voiceStudyAutoListening = false;
     if(noSpeechTimer){ clearTimeout(noSpeechTimer); noSpeechTimer = null; }
+    if(silenceTimer){ clearTimeout(silenceTimer); silenceTimer = null; }
     if(safetyTimer){ clearTimeout(safetyTimer); safetyTimer = null; }
     if(session !== voiceSessionToken) return;
     if(gotSpeech){
@@ -3906,15 +4081,44 @@ function listenForVoiceAnswer(q, session){
     }
   };
 
-  let noSpeechTimer = setTimeout(()=>{
-    noSpeechTimer = null;
-    if(!gotSpeech) proceedToAnswer(); // 아직 한마디도 안 했으면 여기서 바로 정답으로 진행
-  }, voiceStudyListenMs());
-  // 만에 하나 음성인식 이벤트가 하나도 안 들어오는 등 예외적인 상황에서도 흐름이 멈추지 않도록
-  // 최대 대기시간(듣기 + 답변후 대기 + 여유 5초)이 지나면 무조건 정답 단계로 진행시키는 안전장치.
-  let safetyTimer = setTimeout(()=>{
-    proceedToAnswer();
-  }, voiceStudyListenMs() + voiceStudyPostAnswerGapMs() + 5000);
+  let noSpeechTimer = null;   // 아직 한마디도 안 한 상태에서 "이 시간까지 말 안 하면 넘어간다"
+  let silenceTimer = null;    // 말을 시작한 뒤 "이만큼 조용하면 말이 끝난 것으로 보고 넘어간다"
+  let safetyTimer = null;
+  let nextDeadline = 0; // 다음으로 proceedToAnswer가 예정된 시각(ms) — 재시작 필요 여부 판단용
+  const armTimers = ()=>{
+    // 마이크가 실제로 켜진 순간(recognizer.onstart)부터 타이머를 시작한다.
+    // 그 전(마이크 권한 확인·초기화하는 짧은 시간)까지 대기시간에 포함시키면
+    // 실제로 말할 수 있는 시간이 그만큼 줄어들어 답변을 자꾸 놓치게 된다.
+    if(noSpeechTimer) clearTimeout(noSpeechTimer);
+    const ms = voiceStudyListenMs();
+    nextDeadline = Date.now() + ms;
+    noSpeechTimer = setTimeout(()=>{
+      noSpeechTimer = null;
+      if(!gotSpeech) proceedToAnswer(); // 아직 한마디도 안 했으면 여기서 바로 정답으로 진행
+    }, ms);
+    // 만에 하나 음성인식 이벤트가 하나도 안 들어오는 등 예외적인 상황에서도 흐름이 멈추지 않도록
+    // 최대 대기시간(듣기 + 답변후 대기 + 여유 30초)이 지나면 무조건 정답 단계로 진행시키는 안전장치.
+    // (말을 길게 이어가는 경우까지 감안해 여유를 넉넉히 둠)
+    if(safetyTimer) clearTimeout(safetyTimer);
+    safetyTimer = setTimeout(()=>{
+      proceedToAnswer();
+    }, ms + voiceStudyPostAnswerGapMs() + 30000);
+  };
+  // 말이 감지된 뒤, "이만큼 조용하면 말이 끝난 것"으로 보고 다음 단계로 넘어간다.
+  // 말하는 도중 잠깐 쉬어도(문장 사이 숨 고르기 등) 여기서 다시 타이머를 새로 걸기 때문에
+  // 말이 끝나기 전에 잘려서 넘어가는 일이 없다.
+  const armSilenceTimer = ()=>{
+    if(silenceTimer) clearTimeout(silenceTimer);
+    const ms = voiceStudyPostAnswerGapMs();
+    nextDeadline = Date.now() + ms;
+    silenceTimer = setTimeout(()=>{
+      silenceTimer = null;
+      proceedToAnswer();
+    }, ms);
+  };
+  // 혹시 onstart가 지원되지 않는 브라우저를 대비해, 즉시 한 번 타이머를 걸어둔다.
+  // (onstart가 정상적으로 뜨는 브라우저에서는 armTimers()가 다시 호출되며 시간을 리셋함)
+  armTimers();
 
   const startSession = ()=>{
     const recognizer = new SR();
@@ -3922,40 +4126,63 @@ function listenForVoiceAnswer(q, session){
     recognizer.lang = "ko-KR";
     recognizer.interimResults = true;
     recognizer.continuous = true;
+    let sessionFinal = "", sessionInterim = "";
+    recognizer.onstart = ()=>{
+      if(session !== voiceSessionToken) return;
+      if(!gotSpeech) armTimers(); // 마이크가 진짜로 열린 시점부터 "무응답" 대기시간을 다시 센다
+      if(statusEl && !gotSpeech) statusEl.textContent = `🎙️ 답변을 들을게요 (${voiceStudyListenMs()/1000}초 이내)…`;
+    };
     recognizer.onresult = (e)=>{
       if(session !== voiceSessionToken) return;
       if(noSpeechTimer){ clearTimeout(noSpeechTimer); noSpeechTimer = null; }
       gotSpeech = true;
-      let finalTxt = "", interimTxt = "";
-      for(let i=0;i<e.results.length;i++){
-        const r = e.results[i];
-        if(r.isFinal) finalTxt += r[0].transcript;
-        else interimTxt += r[0].transcript;
+      armSilenceTimer(); // 말이 들어올 때마다(중간중간 쉬어도) 침묵 타이머를 계속 새로 건다
+      let finalPieces = [], i = "";
+      for(let idx=0; idx<e.results.length; idx++){
+        const r = e.results[idx];
+        if(r.isFinal) finalPieces.push(r[0].transcript);
+        else i += r[0].transcript;
       }
-      if(ta){
-        ta.value = committedText + finalTxt + interimTxt;
-        if(!state.voiceMemos) state.voiceMemos = {};
-        state.voiceMemos[q.id] = ta.value;
-      }
+      sessionFinal = mergeGrowingPieces(finalPieces);
+      sessionInterim = i;
+      renderText(sessionFinal, sessionInterim);
       if(statusEl) statusEl.textContent = "듣고 있어요…";
     };
-    recognizer.onerror = ()=>{ /* no-speech 등의 오류는 onend에서 일괄 처리 */ };
+    let lastErrorInfo = null;
+    recognizer.onerror = (e)=>{
+      lastErrorInfo = voiceErrorInfo(e && e.error);
+      if(lastErrorInfo.fatal && statusEl) statusEl.textContent = lastErrorInfo.msg;
+    };
     recognizer.onend = ()=>{
       if(voiceStudyRecognizer !== recognizer) return; // 이미 새 세션이 시작된 경우 무시
       voiceStudyRecognizer = null;
       if(answered) return;
       if(voicePaused) return; // 일시정지 중이면 재개 시 처리
-      if(ta && ta.value && ta.value.length > committedText.length){
-        committedText = ta.value.endsWith(" ") ? ta.value : ta.value + " ";
-      }
-      if(!gotSpeech){
-        // 아직 말을 시작 안 한 상태로 세션이 끝났으면(예: 인식기 자체 타임아웃) 다시 듣기 시작
-        try{ startSession(); }catch(e){ proceedToAnswer(); }
-      } else {
-        // 한 번이라도 말을 했다면, 말이 끊긴 뒤 곧바로 "답변 후 대기"로 넘어간다
-        // (계속 말할 수도 있으니, 완전히 침묵한 채로 대기시간만큼 지나면 정답으로 진행)
+      // 이 세션이 확정한 문장을 통째로 배열에 담아둔다(끊어 말해도 앞 내용이 사라지지 않도록).
+      if(sessionFinal) pushVoiceSegment(finalSegments, sessionFinal);
+      // 권한 거부·마이크 없음·네트워크 문제처럼 다시 시도해도 똑같이 실패할 오류라면,
+      // 무한히 재시도하지 않고 바로 정답 단계로 넘어간다(사용자에게는 이미 원인 메시지를 보여준 상태).
+      if(lastErrorInfo && lastErrorInfo.fatal){
         proceedToAnswer();
+        return;
       }
+      // 브라우저가 문장 사이 짧은 쉼에도 이 세션을 스스로 끊는 경우가 많다.
+      // 말을 이미 시작했든 안 했든, 여기서 곧바로 "끝났다"고 단정 짓지 않고
+      // 항상 새 인식 세션을 이어서 시작해 계속 듣는다. 실제로 넘어갈지 말지는
+      // armTimers()/armSilenceTimer()가 관리하는 타이머들이 결정한다.
+      // 다만 재시작마다 안드로이드 시작/종료 알림음("삑삑")이 들리므로:
+      // ① 대기시간이 곧(1.2초 이내) 끝날 예정이면 굳이 재시작하지 않고 그냥 그 타이머가 끝나게 둔다.
+      // ② 재시작이 반복될수록 텀을 점점 늘려서(백오프) 알림음 빈도 자체를 줄인다.
+      restartCount++;
+      const remain = nextDeadline - Date.now();
+      if(remain < 1200){
+        // 곧 어차피 다음 단계로 넘어갈 시점이라, 재시작하지 않고 기존 타이머에 맡긴다.
+        return;
+      }
+      setTimeout(()=>{
+        if(session !== voiceSessionToken || answered || voicePaused) return;
+        try{ startSession(); }catch(e){ proceedToAnswer(); }
+      }, nextRestartDelay());
     };
     try{ recognizer.start(); }catch(e){
       proceedToAnswer();
@@ -4284,9 +4511,20 @@ function datasetHasMultiRound(data){
   data.forEach(d=>{ (map[d.year] ||= new Set()).add(d.round||1); });
   return Object.values(map).some(s=>s.size>1);
 }
+/* ---- 필답형/작업형처럼 한 자격증 안에 시험 종류(examPart)가 섞여 있는지 확인.
+   섞여 있으면 연도별·모의고사 화면에서 서로 절대 섞이지 않도록 별도로 나눠서 다룬다. ---- */
+function datasetExamParts(data){
+  const set = new Set();
+  data.forEach(d=>{ if(d.examPart) set.add(d.examPart); });
+  return [...set];
+}
+function datasetHasMultiExamPart(data){
+  return datasetExamParts(data).length > 1;
+}
 function yearRoundLabel(q, multiRound){
   const yy = String(q.year).slice(-2);
-  return multiRound ? `${yy}-${q.round||1}` : yy;
+  const base = multiRound ? `${yy}-${q.round||1}` : yy;
+  return q.examPart ? `${base}·${q.examPart[0]}` : base; // 필답형→필, 작업형→작
 }
 /* ---- 문제 수정 시 '중복 출제'로 판단되는 다른 문제 id들도 찾기 (buildDuplicateIndex와 동일 기준) ---- */
 function findDuplicateIds(id){
@@ -4936,6 +5174,11 @@ function selfGrade(q, isCorrect){
 /* ---- 모의고사 ---- */
 function renderExamIntro(){
   const sess = store.examSession;
+  const allData = getData();
+  const examParts = datasetExamParts(allData);
+  const multiPart = examParts.length > 1;
+  if(multiPart && !examParts.includes(state.examPart)) state.examPart = examParts[0];
+  const partPool = multiPart ? allData.filter(q=> q.examPart === state.examPart) : allData;
   const resumeHtml = (sess && sess.ids && sess.ids.length && sess.timeLeft>0) ? `
       <div class="settings-row" style="margin-top:10px;">
         <div class="label">이전에 풀던 모의고사가 있어요 (${sess.idx+1}/${sess.ids.length}번, 남은시간 ${formatTime(sess.timeLeft)})</div>
@@ -4949,6 +5192,13 @@ function renderExamIntro(){
     <div class="section-card">
       <h3>단원 전체 랜덤 출제</h3>
       <p style="font-size:0.88rem;color:var(--muted);line-height:1.5;">제한시간 30분, 채점은 제출 후 일괄로 확인합니다. 실제 시험처럼 답안을 먼저 다 작성한 뒤 검토하세요.</p>
+      ${multiPart ? `
+      <div class="settings-row" style="margin-top:10px;flex-direction:column;align-items:flex-start;">
+        <div class="label" style="margin-bottom:6px;">시험 종류 (필답형·작업형은 서로 섞이지 않아요)</div>
+        <div class="chip-row" id="examPartChipRow">
+          ${examParts.map(p=>`<button class="chip ${p===state.examPart?'active':''}" data-part="${escapeHtml(p)}">${escapeHtml(p)} (${allData.filter(q=>q.examPart===p).length}문항)</button>`).join("")}
+        </div>
+      </div>` : ""}
       <div class="settings-row" style="margin-top:10px;">
         <div class="label">출제 문항 수</div>
         <select id="examCountSelect">
@@ -4959,6 +5209,14 @@ function renderExamIntro(){
       ${resumeHtml}
     </div>
   `;
+  if(multiPart){
+    app.querySelectorAll("#examPartChipRow [data-part]").forEach(b=>{
+      b.addEventListener("click", ()=>{
+        state.examPart = b.dataset.part;
+        renderExamIntro(); // 문항 수 등 표시를 새로 고르는 종류 기준으로 다시 그림
+      });
+    });
+  }
   app.querySelector("#examCountSelect").addEventListener("change", (e)=>{ state.examCount = Number(e.target.value); });
   app.querySelector("#startExam").addEventListener("click", ()=>{
     if(sess && !confirm("이전 진행 기록은 사라집니다. 새로 시작할까요?")) return;
@@ -4969,7 +5227,10 @@ function renderExamIntro(){
 }
 function startExam(){
   const count = state.examCount || 20;
-  const data = [...getData()].sort(()=>Math.random()-0.5).slice(0, Math.min(count, getData().length));
+  const allData = getData();
+  const examParts = datasetExamParts(allData);
+  const pool = (examParts.length > 1 && state.examPart) ? allData.filter(q=> q.examPart === state.examPart) : allData;
+  const data = [...pool].sort(()=>Math.random()-0.5).slice(0, Math.min(count, pool.length));
   state.examQueue = data;
   state.examIdx = 0;
   state.examAnswers = {};
@@ -5846,12 +6107,13 @@ function openTagBrowse(tag){
 /* 연도(·회차) / 단원 선택지 목록을 만든다 */
 function yearOptionsFor(data){
   const multiRound = datasetHasMultiRound(data);
+  const multiPart = datasetHasMultiExamPart(data);
   const combos = {};
   data.forEach(d=>{
-    const key = d.year + "-" + (d.round||1);
-    if(!combos[key]) combos[key] = {value:key, label:`${d.year}년${multiRound?" "+(d.round||1)+"회":""}`, year:d.year, round:d.round||1};
+    const key = d.year + "-" + (d.round||1) + (multiPart ? "-"+d.examPart : "");
+    if(!combos[key]) combos[key] = {value:key, label:`${d.year}년${multiRound?" "+(d.round||1)+"회":""}${multiPart?" · "+d.examPart:""}`, year:d.year, round:d.round||1, examPart:d.examPart};
   });
-  return Object.values(combos).sort((a,b)=> a.year-b.year || a.round-b.round);
+  return Object.values(combos).sort((a,b)=> a.year-b.year || a.round-b.round || String(a.examPart||"").localeCompare(String(b.examPart||"")));
 }
 function unitOptionsFor(data){
   const present = new Set(data.map(d=>d.unitMajor));
@@ -6023,10 +6285,11 @@ function renderBrowseView(){
 function renderBrowseList(){
   const kw = (document.getElementById("searchBox").value || "").trim().toLowerCase();
   const data = getData();
+  const multiPart = datasetHasMultiExamPart(data);
   const freqMap = questionFrequencyMap(data);
   const recMap = questionRecencyMap(data);
   let list = data.slice();
-  if(browseYearSelected.size) list = list.filter(c=> browseYearSelected.has(c.year + "-" + (c.round||1)));
+  if(browseYearSelected.size) list = list.filter(c=> browseYearSelected.has(c.year + "-" + (c.round||1) + (multiPart ? "-"+c.examPart : "")));
   if(browseUnitMinorSelected.size) list = list.filter(c=> browseUnitMinorSelected.has(c.unitMinor));
   else if(browseUnitSelected.size) list = list.filter(c=> browseUnitSelected.has(c.unitMajor));
   if(browseTagSelected) list = list.filter(c=> (c.tags||[]).includes(browseTagSelected));
@@ -6628,6 +6891,39 @@ document.addEventListener("click", (e)=>{
 });
 
 render();
+
+/* ---- 새 버전 자동 감지: GitHub Pages/브라우저 캐시 때문에 배포 직후에도 옛날 화면이
+   계속 보이는 문제를 줄이기 위해, 주기적으로 캐시를 건너뛰고 같은 주소를 다시 받아와
+   APP_VERSION을 비교한다. 다르면 화면 하단에 배너를 띄우고, 누르면 캐시 무시하고 새로고침한다. ---- */
+(function(){
+  async function checkForNewVersion(){
+    try{
+      const res = await fetch(location.pathname + location.search, { cache: "no-store" });
+      if(!res.ok) return;
+      const text = await res.text();
+      const m = text.match(/const APP_VERSION = "([^"]*)"/);
+      if(m && m[1] && m[1] !== APP_VERSION) showUpdateBanner();
+    }catch(e){ /* 오프라인 등은 조용히 무시 */ }
+  }
+  function showUpdateBanner(){
+    if(document.getElementById("versionUpdateBanner")) return;
+    const bar = document.createElement("div");
+    bar.id = "versionUpdateBanner";
+    bar.className = "version-update-banner";
+    bar.innerHTML = `<span class="vub-text">🔄 새 버전이 있어요 · 탭해서 새로고침</span><span class="vub-close">✕</span>`;
+    bar.querySelector(".vub-text").addEventListener("click", ()=>{
+      const url = new URL(location.href);
+      url.searchParams.set("v", Date.now()); // 캐시를 우회하기 위한 값
+      location.href = url.toString();
+    });
+    bar.querySelector(".vub-close").addEventListener("click", (e)=>{
+      e.stopPropagation();
+      bar.remove();
+    });
+    document.body.appendChild(bar);
+  }
+  setTimeout(checkForNewVersion, 4000); // 앱 켤 때 한 번만 확인
+})();
 </script>
 
 
