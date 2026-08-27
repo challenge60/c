@@ -5089,11 +5089,17 @@ function shareEnsureFontsReady(){
    그래도 만약 실패하면(네트워크 오류 등) 원래의 긴 링크를 그대로 쓰도록 안전하게 대체한다. */
 async function shareShortenUrl(longUrl){
   try{
-    const res = await fetch("https://is.gd/create.php?format=simple&url=" + encodeURIComponent(longUrl));
+    // 브라우저가 외부 단축 서비스(is.gd 등)를 직접 호출하면 CORS로 막히는 경우가 있어서,
+    // Supabase Edge Function(shorten-url)이 서버 대 서버로 대신 호출해준다.
+    // (standalone 배포본에도 동일하게 쓸 수 있도록 프로젝트 URL을 직접 하드코딩함 —
+    //  anon key 없이도 접근 가능하게 verify_jwt=false로 배포되어 있음)
+    const res = await fetch(
+      "https://fcxpzpdsqwzwaiwhjzqn.supabase.co/functions/v1/shorten-url?url=" + encodeURIComponent(longUrl)
+    );
     if(!res.ok) throw new Error("shorten http " + res.status);
-    const text = (await res.text()).trim();
-    if(!/^https?:\/\//.test(text)) throw new Error("unexpected response: " + text);
-    return text;
+    const data = await res.json();
+    if(!data.shortUrl || !/^https?:\/\//.test(data.shortUrl)) throw new Error("unexpected response");
+    return data.shortUrl;
   }catch(e){
     console.warn("링크 단축 실패, 원본 링크로 대체합니다:", e.message);
     return longUrl;
