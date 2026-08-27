@@ -2,10 +2,10 @@
 <html lang="ko"><head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>산업안전기사 실기 필답 노트</title>
+<title>산업안전기사 필답형 노트</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@500;600&amp;display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#243c3d">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
-  :root{
+:root{
     --ink:#1c2430;
     --deep:#243c3d;
     --teal:#2f6b57;
@@ -94,6 +94,13 @@
     flex-shrink:0;
   }
   header.top .wrap{display:flex;flex-direction:column;gap:4px;}
+  .hub-link{
+    display:inline-flex;align-items:center;gap:4px;
+    font-size:0.72rem;font-weight:600;color:#9db3ab;
+    text-decoration:none;width:fit-content;
+    padding:2px 0;
+  }
+  .hub-link:active{opacity:0.7;}
   .brand{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 8px;cursor:pointer;max-width:100%;}
   .install-btn{
     display:none;
@@ -701,7 +708,7 @@
   textarea#dataImport{width:100%;min-height:120px;font-family:monospace;font-size:0.78rem;border:1px solid var(--line);border-radius:8px;padding:10px;margin-top:8px;}
 
   .diff-note{font-size:0.75rem;color:var(--muted);margin-top:6px;line-height:1.5;}
-  /* ---- 산업안전기사 병합 앱 추가 스타일 ---- */
+  /* ---- 건축기사 병합 앱 추가 스타일 ---- */
   .toast{position:fixed;left:50%;bottom:90px;transform:translate(-50%,20px);background:rgba(20,20,24,0.92);color:#fff;padding:10px 18px;border-radius:10px;font-size:0.85rem;font-weight:600;opacity:0;pointer-events:none;transition:opacity 0.25s ease, transform 0.25s ease;z-index:999;}
   .version-update-banner{position:fixed;left:0;right:0;top:0;z-index:100000;background:#164a5e;color:#fff;display:flex;align-items:center;justify-content:center;gap:14px;padding:11px 16px;font-size:0.85rem;font-weight:700;box-shadow:0 2px 10px rgba(0,0,0,0.2);}
   .version-update-banner .vub-text{cursor:pointer;text-decoration:underline;text-underline-offset:3px;}
@@ -870,14 +877,16 @@
 .copy-confirm-box{text-align:center;}
 .copy-confirm-box h3{padding-right:0;}
 .copy-confirm-icon{font-size:2.2rem;margin-bottom:6px;}
+
 </style>
-<link rel="manifest" href="blob:https://challenge60.github.io/75e8c21b-20d6-4e32-a62c-f675ce53576e"></head>
+</head>
+<body>
 <body>
 
 <div class="app-shell">
 <header class="top compact">
   <div class="wrap">
-    <div class="brand" style="display: none;"><span class="mark">산업안전기사</span><span class="sub">실기 필답 노트</span><span class="ver" id="appVerBadge">Ver. 2026.08.23_16.43</span></div>
+    <div class="brand" style="display: none;"><span class="mark">건축기사</span><span class="sub">실기 필답 노트</span><span class="ver" id="appVerBadge">Ver. 2026.08.23_16.43</span></div>
     <div class="meta-row" id="metaRow" style="display: none;">
       <div class="meta-line" id="headerMeta" style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;">
         <span id="headerMetaLeft">Ver. 2026.08.23_16.43</span>
@@ -895,7 +904,7 @@
 
 <div class="wrap" id="app">
     <div class="section-card">
-      <div class="settings-row"><div class="label">현재 자격증</div><div>산업안전기사 실기 필답 노트</div></div>
+      <div class="settings-row"><div class="label">현재 자격증</div><div>건축기사 실기 필답 노트</div></div>
       <div class="settings-row"><div class="label">현재 문항 수</div><div>1792문항</div></div>
     </div>
 
@@ -1016,6 +1025,8 @@
 </nav>
 </div>
 
+<div id="toast" class="toast"></div>
+
 
 <script>
 /* ============ 앱 버전 & 출력 파일명 — 절대 누락 금지 ============
@@ -1024,15 +1035,16 @@
        화면에는 "Ver. " 접두어를 붙여 "Ver. YYYY.MM.DD_HH:MM" 형태로 표시한다.
        파일을 새로 수정/생성할 때마다 이 값을 그 시점의 타임스탬프로 반드시 교체할 것.
    [2] 파일명 규칙 (2026.08.24 확정, 반드시 지킬 것):
-       - 엔진:   {자격증명}_엔진_{yyyymmdd_hhmm}.html   예) 산업안전기사_엔진_20260824_0546.html
-       - 데이터: {자격증명}_data_{yyyymmdd_hhmm}.json   예) 산업안전기사_data_20260824_0546.json
+       - 엔진:   {자격증명}_엔진_{yyyymmdd_hhmm}.html   예) 건축기사_엔진_20260824_0546.html
+       - 데이터: {자격증명}_data_{yyyymmdd_hhmm}.json   예) 건축기사_data_20260824_0546.json
        - 배포본: {자격증명}_배포본_{yyyymmdd_hhmm}.html 예) 방수산업기사_배포본_20260824_0546.html
        세 가지 다 파일을 건드릴 때마다 이 주석부터 확인할 것.
    [3] 엔진 수정 후에는 곧바로 배포본을 만들지 말고, 무엇을 고쳤는지 먼저 설명하고
        사용자 컨펌을 받은 뒤에만 배포본(들)을 새로 만든다. */
-const APP_VERSION = "2026.08.26_23:29";
+const APP_VERSION = "2026.08.27_08:19";
 
 /* ============ PWA 설치(앱처럼 구동) ============ */
+try{
 (function(){
   // 1) 아이콘을 캔버스로 즉석 생성 (별도 이미지 파일 없이 매니페스트에 사용)
   function buildIcon(size){
@@ -1045,7 +1057,7 @@ const APP_VERSION = "2026.08.26_23:29";
     ctx.font = 'bold ' + Math.round(size * 0.30) + 'px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('건축', size / 2, size * 0.42);
+    ctx.fillText((typeof EXAM_CONFIG !== "undefined" && EXAM_CONFIG.markText) ? EXAM_CONFIG.markText.slice(0,4) : "필답", size / 2, size * 0.42);
     ctx.font = 'bold ' + Math.round(size * 0.13) + 'px sans-serif';
     ctx.fillStyle = '#f4ede0';
     ctx.fillText('필답노트', size / 2, size * 0.66);
@@ -1057,8 +1069,8 @@ const APP_VERSION = "2026.08.26_23:29";
     const icon192 = buildIcon(192);
     const icon512 = buildIcon(512);
     const manifest = {
-      name: "산업안전기사 실기 필답 노트",
-      short_name: "산업안전기사 필답노트",
+      name: (typeof EXAM_CONFIG !== "undefined" && EXAM_CONFIG.titleText) ? EXAM_CONFIG.titleText : "자격증 필답 노트",
+      short_name: (typeof EXAM_CONFIG !== "undefined" && EXAM_CONFIG.markText) ? EXAM_CONFIG.markText + " 필답노트" : "필답노트",
       start_url: location.origin + location.pathname + location.search,
       scope: location.origin + location.pathname.replace(/[^/]*$/, ''),
       display: "standalone",
@@ -1095,10 +1107,14 @@ const APP_VERSION = "2026.08.26_23:29";
   }
 
   // 4) 설치 버튼 동작
-  const installBtn = document.getElementById('installBtn');
-  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-  let deferredPrompt = null;
+  // PWA 설치 관련 기능은 "있으면 좋은" 부가 기능이라, 여기서 예외가 나더라도
+  // 아래에 이어지는 학습 앱 본 기능(store 초기화 등)이 절대 멈추면 안 된다.
+  let installBtn, isStandalone, isIOS, deferredPrompt = null;
+  try {
+    installBtn = document.getElementById('installBtn');
+    isStandalone = (typeof window.matchMedia === 'function' && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
+    isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  } catch(e) { installBtn = null; isStandalone = true; isIOS = false; }
 
   if(installBtn && !isStandalone){
     if(isIOS){
@@ -1130,12 +1146,13 @@ const APP_VERSION = "2026.08.26_23:29";
     }
   }
 })();
+}catch(e){ console.warn("PWA 설치 기능 초기화 실패(앱 본 기능에는 영향 없음):", e); }
 
 /* ============ 자격증 설정 ============ */
 /* 새 자격증 앱을 만들 때는 이 EXAM_CONFIG와 아래 SAMPLE_DATA만 교체하면 됩니다. */
 const EXAM_CONFIG = {"markText": "산업안전기사", "subtitle": "필답형 노트", "titleText": "산업안전기사 필답형 노트", "openTalkUrl": "", "openTalkLabel": "산업안전기사 오픈톡", "openTalks": []};
 
-/* ============ 산업안전기사 실기 기출문제 데이터 (2011~2026, 1,281문항) ============ */
+/* ============ 건축기사 실기 기출문제 데이터 (2011~2026, 1,281문항) ============ */
 const IMAGES = {};
 let customImages = {};
 /* 사진 여러 장을 그대로 base64로 저장하면 localStorage 용량(약 5~10MB)을 금방 초과해
@@ -1259,7 +1276,10 @@ const SAMPLE_DATA = [{"id": "2025-1-01", "year": 2025, "round": 1, "no": 1, "poi
 
 /* ============ 저장소 (localStorage) ============ */
 const TAG_GROUP = {"골재": "콘크리트공사", "시멘트": "콘크리트공사", "혼화재": "재료", "AE제": "재료", "방청제": "재료", "감수제": "재료", "유동화제": "재료", "팽창재": "재료", "실리카퓸": "재료", "플라이애시": "재료", "고로슬래그": "재료", "잔골재율": "재료", "물시멘트비": "재료", "슬럼프": "재료", "공기량": "콘크리트공사", "압축강도": "재료", "인장강도": "재료", "흡수율": "재료", "단위중량": "재료", "알칼리골재반응": "재료", "염분함유량": "재료", "방수제": "재료", "방청도료": "재료", "복층유리": "재료", "로이유리": "재료", "강화유리": "재료", "접합유리": "재료", "자기질타일": "재료", "도기질타일": "재료", "화강암": "재료", "대리석": "재료", "테라조": "재료", "인조석": "재료", "실란트": "재료", "코킹": "재료", "단열재": "재료", "방음재": "재료", "방화재": "재료", "내화재료": "재료", "흙막이": "토공사", "어스앵커": "토공사", "시트파일": "토공사", "슬러리월": "토공사", "지하연속벽": "토공사", "언더피닝": "토공사", "보일링": "토공사", "히빙": "토공사", "파이핑": "토공사", "지반개량": "토공사", "웰포인트": "토공사", "샌드드레인": "토공사", "페이퍼드레인": "토공사", "동다짐": "토공사", "그라우팅": "토공사", "약액주입": "토공사", "표준관입시험": "토공사", "베인시험": "토공사", "평판재하시험": "토공사", "지내력시험": "토공사", "프리보링": "토공사", "SIP공법": "토공사", "PHC파일": "토공사", "강관파일": "토공사", "부마찰력": "토공사", "부동침하": "토공사", "동바리": "거푸집공사", "유로폼": "거푸집공사", "갱폼": "거푸집공사", "슬립폼": "거푸집공사", "슬라이딩폼": "거푸집공사", "트래블링폼": "거푸집공사", "콜드조인트": "철근콘크리트공사", "블리딩": "철근콘크리트공사", "레이턴스": "철근콘크리트공사", "크리프": "철근콘크리트공사", "건조수축": "철근콘크리트공사", "중성화": "철근콘크리트공사", "철근이음": "철근콘크리트공사", "겹침이음": "철근콘크리트공사", "가스압접": "철근콘크리트공사", "커플러": "철근콘크리트공사", "정착길이": "철근콘크리트공사", "배근": "철근콘크리트공사", "스터럽": "철근콘크리트공사", "띠철근": "철근콘크리트공사", "재료분리": "콘크리트공사", "균열": "철근콘크리트공사", "철근가공": "철근콘크리트공사", "콘크리트타설": "철근콘크리트공사", "콘크리트헤드": "콘크리트공사", "크리트헤드": "철근콘크리트공사", "화란식쌓기": "조적공사", "불식쌓기": "조적공사", "미식쌓기": "조적공사", "치장줄눈": "조적공사", "통줄눈": "조적공사", "막힌줄눈": "조적공사", "압착공법": "타일공사", "개량압착공법": "타일공사", "밀착공법": "타일공사", "떠붙임공법": "타일공사", "벤토나이트방수": "방수공사", "시멘트액체방수": "방수공사", "결로": "방수공사", "언더컷": "철골공사", "오버랩": "철골공사", "블로홀": "철골공사", "크레이터": "철골공사", "슬래그감싸들기": "철골공사", "토크관리법": "철골공사", "너트회전법": "철골공사", "초음파탐상법": "철골공사", "방사선투과법": "철골공사", "자기분말탐상법": "철골공사", "침투탐상법": "철골공사", "스터드용접": "철골공사", "데크플레이트": "철골공사", "스틱월": "창호및유리공사", "유닛월": "창호및유리공사", "윈도우월": "창호및유리공사", "PERT": "공정관리", "CPM": "공정관리", "주공정선": "공정관리", "여유시간": "공정관리", "자원배당": "공정관리", "간트차트": "공정관리", "파레토도": "품질관리", "특성요인도": "품질관리", "히스토그램": "품질관리", "체크시트": "품질관리", "산점도": "품질관리", "층별": "품질관리", "지명경쟁입찰": "계약제도", "일반경쟁입찰": "계약제도", "실비정산보수가산식": "계약제도", "정액도급": "계약제도", "단가도급": "계약제도", "BLT": "계약제도", "턴키": "계약제도", "성능발주방식": "계약제도", "온통기초": "구조", "독립기초": "구조", "복합기초": "구조", "전단벽": "구조", "내진설계": "구조", "프리스트레스트콘크리트": "구조", "이형철근": "구조", "슬래브": "구조", "캔틸레버": "구조", "반력": "구조역학", "전단력": "구조역학", "휨모멘트": "구조역학", "처짐": "구조역학", "좌굴": "구조역학", "단면2차모멘트": "구조역학", "트러스": "구조역학", "수준측량": "측량", "삼각측량": "측량", "평판측량": "측량", "등고선": "측량", "토탈스테이션": "측량", "GPS측량": "측량", "기초공사": "토공사", "레미콘": "콘크리트공사", "붙이기공법": "타일공사", "혼화재료": "콘크리트공사", "철근물량산출": "철근콘크리트공사", "네트워크공정표": "공정관리", "백화현상": "조적공사", "파이프구조": "철골공사", "벽돌쌓기순서": "조적공사", "공사계약방식": "계약제도", "비계": "가설공사", "타설이음부": "철근콘크리트공사", "VE": "공정관리", "비파괴검사": "철골공사", "피복두께": "철근콘크리트공사", "커튼월": "창호및유리공사", "입찰순서": "계약제도", "슬럼프기준": "콘크리트공사", "하절기콘크리트": "콘크리트공사", "지반개량공법": "토공사", "현장배합": "콘크리트공사", "용접부명칭": "철골공사", "외벽방수": "방수공사", "전단강도": "토공사", "시멘트저장": "콘크리트공사", "철물용어": "금속공사", "영식쌓기": "조적공사", "한중콘크리트": "콘크리트공사", "자원평준화": "공정관리", "도급방식": "계약제도", "진동다짐": "콘크리트공사", "측정기구": "토공사", "보일링현상": "토공사", "PDCA": "품질관리", "횡력보강": "목공사", "콘크리트명칭": "콘크리트공사", "할증률": "적산", "용접결함": "철골공사", "배합설계순서": "콘크리트공사", "벽돌수량": "적산", "철골중량": "적산", "레미콘규격": "콘크리트공사", "커튼월방식": "창호및유리공사", "콘크리트및거푸집량": "적산", "거푸집종류": "거푸집공사", "용접용어": "철골공사", "용접방식": "철골공사", "흙의연경도": "토공사", "샌드드레인공법": "토공사", "레미콘품질검사": "콘크리트공사", "BOT방식": "계약제도", "공간쌓기": "조적공사", "배합설계계산": "콘크리트공사", "창호용어": "창호및유리공사", "EVMS": "공정관리", "벽돌쌓기종류": "조적공사", "시트방수순서": "방수공사", "PS콘크리트": "콘크리트공사", "내화피복공법": "철골공사", "언더피닝공법": "토공사", "분말도시험법": "콘크리트공사", "옥상방수물량": "방수공사", "벽돌수량계산": "적산", "특수콘크리트분류": "콘크리트공사", "바닥돌깔기": "마감공사", "칼럼쇼트닝": "철골공사", "VE추진절차": "공정관리", "수의계약": "계약제도", "강제창호제작순서": "철골공사", "브레인스토밍": "공정관리", "시방서분류": "계약제도", "강관비계부속철물": "가설공사", "CM방식": "계약제도", "유동화콘크리트": "콘크리트공사", "CM계약유형": "계약제도", "줄눈": "콘크리트공사", "조립률": "콘크리트공사", "벽돌소요량": "조적공사", "바깥방수시공순서": "방수공사", "속빈블록치수": "조적공사", "지반탈수공법": "토공사", "TQC 7도구": "시공관리", "독립기초재료량": "적산", "JIT": "시공관리", "측압": "콘크리트공사", "3S시스템": "시공관리", "BOT": "계약제도", "BTO": "계약제도", "지반조사순서": "토공사", "주각부시공순서": "철골공사", "철근간격": "철근콘크리트공사", "거푸집존치기간": "콘크리트공사", "접합방식": "철골공사", "돌붙임시공순서": "석공사", "강판물량산출": "철골공사", "모르타르용도": "미장공사", "CALS": "시공관리", "EC": "시공관리", "LCC": "시공관리", "거푸집역할": "콘크리트공사", "TQC도구": "시공관리", "붙임공법": "타일공사", "VE절차": "시공관리", "줄기초물량산출": "철근콘크리트공사", "트러스철골량산출": "철골공사", "보링": "토공사", "시멘트비중시험": "재료", "조립식공법": "시공관리", "단열재요구조건": "재료", "공사자원분류": "시공관리", "표준품셈": "시공관리", "소운반": "시공관리", "페이퍼조인트": "계약제도", "기준점": "측량", "예민비": "토공사", "성능발주": "계약제도", "CM": "계약제도", "장비": "콘크리트공사", "터파기물량산출": "토공사", "공정관리용어": "시공관리", "TES": "계약제도", "정초식": "시공관리", "상량식": "시공관리", "보강블록구조사춤": "조적공사", "각종Joint": "콘크리트공사", "기초상부고름질": "철골공사", "고력볼트장점": "철골공사", "원가계산기준용어": "시공관리", "기둥공사흐름도": "철골공사", "비계면적산출": "가설공사", "고력볼트등급": "철골공사", "PSC공법순서": "콘크리트공사", "배근가능개수": "철근콘크리트공사"};
-const LS_KEY = "safety_exam_app_v1";
+/* 이 파일을 복제해서 다른 자격증 배포본을 만들 경우, EXAM_CONFIG.markText가 다르면
+   자동으로 다른 localStorage 키를 쓰게 되어 같은 브라우저/도메인에서 여러 배포본을
+   열어도 학습기록이 서로 섞이지 않는다. */
+const LS_KEY = "exam_app_v1__" + (typeof EXAM_CONFIG !== "undefined" && EXAM_CONFIG.markText ? EXAM_CONFIG.markText.replace(/\s+/g, "_") : "default");
 function loadStore(){
   try{
     const raw = localStorage.getItem(LS_KEY);
@@ -4357,7 +4377,7 @@ function plainTextOf(text){
 function buildAiPrompt(q){
   const qText = plainTextOf(q.question);
   const aText = plainTextOf(q.answer);
-  return `다음은 산업안전기사 실기(필답형) 시험 문제입니다. 왜 이 답이 맞는지, 관련 개념과 함께 초보자도 이해하기 쉽게 자세히 해설해줘.\n\n[문제]\n${qText}\n\n[모범답안]\n${aText}`;
+  return `다음은 건축기사 실기(필답형) 시험 문제입니다. 왜 이 답이 맞는지, 관련 개념과 함께 초보자도 이해하기 쉽게 자세히 해설해줘.\n\n[문제]\n${qText}\n\n[모범답안]\n${aText}`;
 }
 /* ---- AI 해설 링크 모달 (ChatGPT / Google AI) ---- */
 function openAiHelpModal(q){
@@ -4596,7 +4616,7 @@ function buildShareText(q, withAnswer){
   const multiRound = datasetHasMultiRound(getData());
   const label = yearRoundLabel(q, multiRound) + (q.no?`-${q.no}`:"");
   const lines = [];
-  lines.push(`산업안전기사 실기 필답노트 · ${label}${q.unitMajor?" · "+q.unitMajor:""}${q.unitMinor?" · "+q.unitMinor:""}`);
+  lines.push(`건축기사 실기 필답노트 · ${label}${q.unitMajor?" · "+q.unitMajor:""}${q.unitMinor?" · "+q.unitMinor:""}`);
   lines.push("");
   lines.push("[문제]");
   lines.push(plainTextOf(q.question));
@@ -4882,7 +4902,7 @@ async function buildQuestionShareCanvas(q, withAnswer){
   ctx.fillStyle = "#ffffff";
   ctx.font = "700 22px 'IBM Plex Sans KR', sans-serif";
   ctx.textBaseline = "alphabetic";
-  ctx.fillText("산업안전기사 실기 필답노트", PAD, 44);
+  ctx.fillText("건축기사 실기 필답노트", PAD, 44);
 
   ctx.font = "400 15px 'IBM Plex Sans KR', sans-serif";
   ctx.fillStyle = "rgba(255,255,255,0.85)";
@@ -4916,7 +4936,7 @@ async function buildQuestionShareCanvas(q, withAnswer){
   ctx.fillStyle = C.muted;
   ctx.font = "400 14px 'IBM Plex Sans KR', sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText(`산업안전기사 실기 필답노트 · Ver.${typeof APP_VERSION!=="undefined"?APP_VERSION:""}`, W/2, H-28);
+  ctx.fillText(`건축기사 실기 필답노트 · Ver.${typeof APP_VERSION!=="undefined"?APP_VERSION:""}`, W/2, H-28);
   ctx.textAlign = "left";
 
   return canvas;
@@ -4929,7 +4949,7 @@ async function buildQuestionShareCanvas(q, withAnswer){
    문제처럼 캔버스 생성이 조금이라도 오래 걸릴 때 클립보드 복사가 조용히 실패해서
    "이미지 저장(미리보기)" 폴백으로 넘어가 버린다. */
 async function shareQuestionImage(q, withAnswer){
-  const fname = `산업안전기사실기_${q.id}_${withAnswer?"정답포함":"문제"}.png`;
+  const fname = `건축기사실기_${q.id}_${withAnswer?"정답포함":"문제"}.png`;
   const supportsClipboardImage = !!(navigator.clipboard && navigator.clipboard.write && window.ClipboardItem);
 
   let resolveBlob, rejectBlob;
@@ -5862,7 +5882,7 @@ function exportListToPDF(list, title, hideAnswer){
   setTimeout(()=>{ win.focus(); win.print(); }, 400);
 }
 
-/* ---- 토스트 알림 (산업안전기사 앱에서 이식) ---- */
+/* ---- 토스트 알림 (건축기사 앱에서 이식) ---- */
 function toast(msg){
   let t = document.getElementById("toast");
   if(!t){
@@ -5877,7 +5897,7 @@ function toast(msg){
   toast._timer = setTimeout(()=> t.classList.remove("show"), 2200);
 }
 
-/* ---- 카드 스와이프 제스처 (산업안전기사 앱에서 이식) ---- */
+/* ---- 카드 스와이프 제스처 (건축기사 앱에서 이식) ---- */
 function snapBack(el){
   el.style.transition = "transform 0.25s ease, opacity 0.25s ease";
   el.style.transform = "translateX(0)";
@@ -6924,8 +6944,6 @@ render();
   }
   setTimeout(checkForNewVersion, 4000); // 앱 켤 때 한 번만 확인
 })();
+
 </script>
-
-
-<div id="toast" class="toast"></div><script data-seed="1">try{localStorage.setItem("safety_exam_app_v1","{\"progress\":{},\"wrong\":{},\"bookmarks\":{},\"streak\":{\"last\":null,\"count\":0},\"solvedTotal\":0,\"correctTotal\":0,\"customData\":null,\"edits\":{},\"examConfig\":null,\"session\":{},\"examSession\":null,\"setRepeats\":{}}");}catch(e){}</script>
 </body></html>
