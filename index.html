@@ -764,8 +764,8 @@
 
   body{font-family:'IBM Plex Sans KR',-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;}
 
-  header.top{border-bottom:2px solid #e8892c;}
-  .brand .mark{background:#e8892c;color:var(--deep);border-radius:6px;font-weight:800;}
+  header.top{border-bottom:2px solid var(--amber);}
+  .brand .mark{background:var(--amber);color:var(--deep);border-radius:6px;font-weight:800;}
   .brand .sub{font-family:'IBM Plex Sans KR',-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;font-weight:800;}
   .page-bar h2{font-family:'IBM Plex Sans KR',-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;font-weight:800;}
 
@@ -1106,6 +1106,7 @@ try{
     const icon192 = buildIcon(192);
     const icon512 = buildIcon(512);
     const manifest = {
+      id: location.pathname.replace(/[^/]*$/, ''), // 자격증별 폴더 경로를 앱 식별자로 사용 → 크롬이 서로 다른 앱으로 확실히 구분
       name: (typeof EXAM_CONFIG !== "undefined" && EXAM_CONFIG.titleText) ? EXAM_CONFIG.titleText : "자격증 필답 노트",
       short_name: shortMarkOf(typeof EXAM_CONFIG !== "undefined" ? EXAM_CONFIG.markText : null) + "노트",
       start_url: location.origin + location.pathname + location.search,
@@ -1162,19 +1163,34 @@ try{
         alert('Safari 하단 공유 버튼(⬆️)을 누른 뒤\n"홈 화면에 추가"를 선택하면 앱처럼 설치돼요.');
       });
     } else {
+      // 크롬은 같은 origin에서 PWA를 하나 설치하고 나면(다른 자격증이라도) 스팸 방지 차원에서
+      // beforeinstallprompt를 한동안 다시 안 보내는 경우가 있다. 그 이벤트가 안 와도 버튼 자체는
+      // 항상 눌러볼 수 있게 보여주고, 자동 설치가 불가능하면 수동 설치 방법을 안내하는 것으로 대체한다.
       window.addEventListener('beforeinstallprompt', function(e){
         e.preventDefault();
         deferredPrompt = e;
         installBtn.style.display = 'flex';
+        installBtn.textContent = '📲 앱 설치';
       });
+      // beforeinstallprompt가 안 오더라도 잠시 후 버튼은 일단 보여준다 (수동 안내로 동작)
+      setTimeout(function(){
+        if(installBtn.style.display !== 'flex'){
+          installBtn.style.display = 'flex';
+          installBtn.textContent = '📲 홈 화면에 추가';
+        }
+      }, 2500);
       installBtn.addEventListener('click', async function(){
-        if(!deferredPrompt) return;
-        installBtn.disabled = true;
-        deferredPrompt.prompt();
-        try{ await deferredPrompt.userChoice; }catch(e){}
-        deferredPrompt = null;
-        installBtn.style.display = 'none';
-        installBtn.disabled = false;
+        if(deferredPrompt){
+          installBtn.disabled = true;
+          deferredPrompt.prompt();
+          try{ await deferredPrompt.userChoice; }catch(e){}
+          deferredPrompt = null;
+          installBtn.style.display = 'none';
+          installBtn.disabled = false;
+        } else {
+          // 자동 설치 팝업이 뜨지 않는 상황(이미 다른 자격증을 설치해서 크롬이 잠시 억제 중인 경우 등)
+          alert('브라우저 메뉴(⋮) → "홈 화면에 추가" 또는 "앱 설치"를 눌러도 똑같이 설치할 수 있어요.\n(크롬은 같은 사이트에서 여러 앱을 짧은 시간 안에 설치하면 자동 설치 팝업을 잠시 안 띄울 수 있어요)');
+        }
       });
       window.addEventListener('appinstalled', function(){
         installBtn.style.display = 'none';
