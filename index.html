@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="산업안전기사 필답노트">
+<meta name="apple-mobile-web-app-title" content="산업안전노트">
 <meta name="theme-color" content="#243c3d">
 <style>
 :root{
@@ -1062,6 +1062,16 @@ const APP_VERSION = "2026.08.26_23:06";
 /* ============ PWA 설치(앱처럼 구동) ============ */
 try{
 (function(){
+  // "OO산업기사", "OO기사"처럼 끝에 직함이 붙은 이름에서 핵심 단어만 뽑아낸다.
+  // 홈 화면 아이콘/설치명은 표시 폭이 좁아서 markText 전체를 쓰면 (특히 "방수산업기사" 같은
+  // 6글자 이상 이름) 글자가 잘려 보이는 문제가 있었음. 예: 건축기사→건축, 방수산업기사→방수, 산업안전기사→산업안전
+  function shortMarkOf(markText){
+    if(!markText) return "필답";
+    if(markText.endsWith("산업기사")) return markText.slice(0, -4);
+    if(markText.endsWith("기사")) return markText.slice(0, -2);
+    return markText.slice(0, 4);
+  }
+
   // 1) 아이콘을 캔버스로 즉석 생성 (별도 이미지 파일 없이 매니페스트에 사용)
   function buildIcon(size){
     const c = document.createElement('canvas');
@@ -1073,7 +1083,7 @@ try{
     ctx.font = 'bold ' + Math.round(size * 0.30) + 'px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText((typeof EXAM_CONFIG !== "undefined" && EXAM_CONFIG.markText) ? EXAM_CONFIG.markText.slice(0,4) : "필답", size / 2, size * 0.42);
+    ctx.fillText(shortMarkOf(typeof EXAM_CONFIG !== "undefined" ? EXAM_CONFIG.markText : null), size / 2, size * 0.42);
     ctx.font = 'bold ' + Math.round(size * 0.13) + 'px sans-serif';
     ctx.fillStyle = '#f4ede0';
     ctx.fillText('필답노트', size / 2, size * 0.66);
@@ -1086,7 +1096,7 @@ try{
     const icon512 = buildIcon(512);
     const manifest = {
       name: (typeof EXAM_CONFIG !== "undefined" && EXAM_CONFIG.titleText) ? EXAM_CONFIG.titleText : "자격증 필답 노트",
-      short_name: (typeof EXAM_CONFIG !== "undefined" && EXAM_CONFIG.markText) ? EXAM_CONFIG.markText + " 필답노트" : "필답노트",
+      short_name: shortMarkOf(typeof EXAM_CONFIG !== "undefined" ? EXAM_CONFIG.markText : null) + "노트",
       start_url: location.origin + location.pathname + location.search,
       scope: location.origin + location.pathname.replace(/[^/]*$/, ''),
       display: "standalone",
