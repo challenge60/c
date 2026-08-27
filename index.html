@@ -1331,13 +1331,46 @@ function unitMajorList(){ return UNIT_TAXONOMY.map(u=>u.major); }
 function unitMinorsOf(major){ const g = UNIT_TAXONOMY.find(u=>u.major===major); return g ? g.minors : []; }
 function majorOfMinor(minor){ const g = UNIT_TAXONOMY.find(u=>u.minors.includes(minor)); return g ? g.major : null; }
 
+/* ============ 관리자 수정 오버레이 (전체 사용자 공용) ============
+   우선순위: 원본(SAMPLE_DATA) < 관리자 수정(window.adminOverrides) < 내 개인 수정(store.edits)
+   즉, 이 문제를 개인적으로 고친 적이 없는 사용자에게만 관리자 수정이 보인다.
+   window.adminOverrides는 storage.js가 Supabase question_overrides 테이블에서 불러와 채운다
+   (허브 배포본에서만 존재; standalone 배포본은 항상 undefined이므로 원본 그대로 동작). */
+function adminOverrideFor(id){
+  return (typeof window !== "undefined" && window.adminOverrides) ? window.adminOverrides[id] : null;
+}
 function getData(){
   const base = store.customData && store.customData.length ? store.customData : SAMPLE_DATA;
-  if(!store.edits || !Object.keys(store.edits).length) return base;
-  return base.map(q => store.edits[q.id] ? {...q, ...store.edits[q.id]} : q);
+  const hasEdits = store.edits && Object.keys(store.edits).length;
+  const hasAdminOv = typeof window !== "undefined" && window.adminOverrides && Object.keys(window.adminOverrides).length;
+  if(!hasEdits && !hasAdminOv) return base;
+  return base.map(q => withEdits(q));
 }
 function withEdits(q){
-  return (q && store.edits && store.edits[q.id]) ? {...q, ...store.edits[q.id]} : q;
+  if(!q) return q;
+  const adminOv = adminOverrideFor(q.id);
+  const merged = adminOv ? {...q, ...adminOv} : q;
+  return (store.edits && store.edits[q.id]) ? {...merged, ...store.edits[q.id]} : merged;
+}
+
+/* ---- 관리자 전용: 문제 수정사항을 전체 사용자 기본값으로 발행(publish) ----
+   window.isAdmin / window.publishAdminOverride 는 storage.js(허브에서만 로드)가 채워준다.
+   관리자가 아니거나 storage.js가 없는(standalone) 환경에서는 아무 일도 하지 않는다. */
+async function maybeAskAdminPublish(id, payload){
+  if(typeof window === "undefined" || !window.isAdmin || typeof window.publishAdminOverride !== "function") return;
+  const ok = confirm(
+    "이 수정을 이 문제의 기본값으로 적용할까요?\n\n" +
+    "적용하면, 이 문제를 개인적으로 아직 수정하지 않은 모든 사용자에게 이 내용이 보이게 됩니다.\n" +
+    "(이미 이 문제를 개인적으로 수정해 둔 사용자는 계속 자신의 수정본을 보게 되어 영향받지 않습니다)"
+  );
+  if(!ok) return;
+  try{
+    await window.publishAdminOverride(id, payload);
+    toast("전체 사용자 기본값으로 적용되었습니다");
+  }catch(e){
+    console.error(e);
+    alert("전체 적용 중 오류가 발생했습니다: " + (e && e.message ? e.message : e));
+  }
 }
 
 /* ============ 활성 자격증 설정 적용 (기본 EXAM_CONFIG 또는 가져온 데이터의 examConfig) ============ */
@@ -6735,14 +6768,17 @@ function openEditModal(id, onSaved){
     const tagsArr = tagsText.split(",").map(t=>t.trim()).filter(Boolean).slice(0,6);
     const newUnitMajor = overlay.querySelector("#editUnitMajor").value;
     const newUnitMinor = overlay.querySelector("#editUnitMinor").value;
+    const editPayload = {question:qText, answer:aText, images:workingImages, tags:tagsArr, unitMajor:newUnitMajor, unitMinor:newUnitMinor};
     targets.forEach(tid=>{
-      store.edits[tid] = {question:qText, answer:aText, images:workingImages, tags:tagsArr, unitMajor:newUnitMajor, unitMinor:newUnitMinor};
+      store.edits[tid] = editPayload;
     });
     const ok = saveStore();
     if(!ok) return; // 저장 실패 시 편집창을 닫지 않고 이미지를 줄여 재시도할 수 있게 유지
     close();
     toast(targets.length>1 ? `중복 문제 ${targets.length}개를 함께 수정했습니다` : "저장되었습니다");
     if(onSaved) onSaved();
+    // 관리자라면, 이 수정을 전체 사용자 기본값으로도 적용할지 물어본다 (개인 수정은 이미 위에서 저장 완료됨)
+    targets.forEach(tid=>{ maybeAskAdminPublish(tid, editPayload); });
   });
 }
 
