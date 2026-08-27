@@ -5082,12 +5082,14 @@ function shareEnsureFontsReady(){
   })();
   return _shareFontsReadyPromise;
 }
-/* 공유 카드에 넣을 "이 문제로 바로 가는" 딥링크를 짧게 만든다. TinyURL의 무료 API를 쓰는데,
-   브라우저에서 직접 호출 가능한지(CORS) 서비스 쪽 정책에 달려있어 100% 보장은 안 된다.
-   실패하면(CORS 차단, 네트워크 오류 등) 원래의 긴 링크를 그대로 쓰도록 안전하게 대체한다. */
+/* 공유 카드에 넣을 "이 문제로 바로 가는" 딥링크를 짧게 만든다. is.gd의 무료 API는
+   "브라우저에서 실행되는 애플리케이션(브라우저 확장 등)"을 명시적으로 지원 대상으로
+   안내하고 있어 CORS 문제 없이 클라이언트에서 바로 호출 가능하다. (TinyURL의 옛 api-create.php
+   엔드포인트는 폐지되어 더 이상 동작하지 않아 is.gd로 교체함)
+   그래도 만약 실패하면(네트워크 오류 등) 원래의 긴 링크를 그대로 쓰도록 안전하게 대체한다. */
 async function shareShortenUrl(longUrl){
   try{
-    const res = await fetch("https://tinyurl.com/api-create.php?url=" + encodeURIComponent(longUrl));
+    const res = await fetch("https://is.gd/create.php?format=simple&url=" + encodeURIComponent(longUrl));
     if(!res.ok) throw new Error("shorten http " + res.status);
     const text = (await res.text()).trim();
     if(!/^https?:\/\//.test(text)) throw new Error("unexpected response: " + text);
