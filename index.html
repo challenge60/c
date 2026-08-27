@@ -4857,11 +4857,12 @@ function askAiAboutQuestion(serviceKey, q){
 }
 
 /* ---- 문제 공유용 텍스트 생성 (정답 포함/미포함 선택 가능) ---- */
-function buildShareText(q, withAnswer){
+async function buildShareText(q, withAnswer){
   const multiRound = datasetHasMultiRound(getData());
   const label = yearRoundLabel(q, multiRound) + (q.no?`-${q.no}`:"");
   const lines = [];
-  lines.push(`건축기사 실기 필답노트 · ${label}${q.unitMajor?" · "+q.unitMajor:""}${q.unitMinor?" · "+q.unitMinor:""}`);
+  const appTitle = (typeof EXAM_CONFIG !== "undefined" && EXAM_CONFIG.titleText) ? EXAM_CONFIG.titleText : "자격증 필답노트";
+  lines.push(`${appTitle} · ${label}${q.unitMajor?" · "+q.unitMajor:""}${q.unitMinor?" · "+q.unitMinor:""}`);
   lines.push("");
   lines.push("[문제]");
   lines.push(plainTextOf(q.question));
@@ -4875,6 +4876,11 @@ function buildShareText(q, withAnswer){
   if(hasImgInQuestion || hasImgInAnswer){
     lines.push("");
     lines.push("※ 이 문제에는 도면·그림이 포함되어 있어 텍스트만으로는 풀 수 없어요. 공유 형식을 '이미지'로 선택해주세요.");
+  }
+  if(typeof shareShortenUrl === "function"){
+    const shareUrl = await shareShortenUrl(location.origin + location.pathname + "?q=" + encodeURIComponent(q.id));
+    lines.push("");
+    lines.push(`🔗 이 문제 바로 보기: ${shareUrl}`);
   }
   return lines.join("\n");
 }
@@ -4960,7 +4966,9 @@ async function shareParseSegments(text, images){
     if(m.index > lastIndex){
       segments.push(...(await shareParseInline(raw.slice(lastIndex, m.index), images, usedIdx)));
     }
-    const items = await shareParseInline(m[1], images, usedIdx);
+    // 박스 안쪽 텍스트에 앞뒤로 빈 줄이 섞여 있으면, 그 빈 줄도 한 줄로 계산되어
+    // 박스 안에 불필요한 빈 공간이 생기고 테두리가 어긋나 보이는 문제가 있었음 → trim
+    const items = await shareParseInline(m[1].trim(), images, usedIdx);
     if(items.length) segments.push({type:"box", items});
     lastIndex = boxRe.lastIndex;
   }
@@ -5069,6 +5077,21 @@ function shareEnsureFontsReady(){
   })();
   return _shareFontsReadyPromise;
 }
+/* 공유 카드에 넣을 "이 문제로 바로 가는" 딥링크를 짧게 만든다. TinyURL의 무료 API를 쓰는데,
+   브라우저에서 직접 호출 가능한지(CORS) 서비스 쪽 정책에 달려있어 100% 보장은 안 된다.
+   실패하면(CORS 차단, 네트워크 오류 등) 원래의 긴 링크를 그대로 쓰도록 안전하게 대체한다. */
+async function shareShortenUrl(longUrl){
+  try{
+    const res = await fetch("https://tinyurl.com/api-create.php?url=" + encodeURIComponent(longUrl));
+    if(!res.ok) throw new Error("shorten http " + res.status);
+    const text = (await res.text()).trim();
+    if(!/^https?:\/\//.test(text)) throw new Error("unexpected response: " + text);
+    return text;
+  }catch(e){
+    console.warn("링크 단축 실패, 원본 링크로 대체합니다:", e.message);
+    return longUrl;
+  }
+}
 async function buildQuestionShareCanvas(q, withAnswer){
   await shareEnsureFontsReady();
   const SCALE = 2;
@@ -5077,6 +5100,8 @@ async function buildQuestionShareCanvas(q, withAnswer){
   const contentW = W - PAD*2;
   const MAX_IMG_H = 360;
   const C = SHARE_COLORS;
+  const appTitle = (typeof EXAM_CONFIG !== "undefined" && EXAM_CONFIG.titleText) ? EXAM_CONFIG.titleText : "자격증 필답노트";
+  const shareUrl = await shareShortenUrl(location.origin + location.pathname + "?q=" + encodeURIComponent(q.id));
   const multiRound = datasetHasMultiRound(getData());
   const label = yearRoundLabel(q, multiRound) + (q.no?`-${q.no}`:"");
   const images = q.images || [];
@@ -5124,7 +5149,7 @@ async function buildQuestionShareCanvas(q, withAnswer){
     ansBoxH = 44 + shareSegmentsHeight(laidOutAns) + 24;
     y += ansBoxH + 8;
   }
-  y += 70;
+  y += 92; // 하단 버전 표시 줄 + 링크 표시 줄 공간
 
   const H = Math.ceil(y);
   const canvas = document.createElement("canvas");
@@ -5147,7 +5172,7 @@ async function buildQuestionShareCanvas(q, withAnswer){
   ctx.fillStyle = "#ffffff";
   ctx.font = "700 22px 'IBM Plex Sans KR', sans-serif";
   ctx.textBaseline = "alphabetic";
-  ctx.fillText("건축기사 실기 필답노트", PAD, 44);
+  ctx.fillText(appTitle, PAD, 44);
 
   ctx.font = "400 15px 'IBM Plex Sans KR', sans-serif";
   ctx.fillStyle = "rgba(255,255,255,0.85)";
@@ -5181,7 +5206,10 @@ async function buildQuestionShareCanvas(q, withAnswer){
   ctx.fillStyle = C.muted;
   ctx.font = "400 14px 'IBM Plex Sans KR', sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText(`건축기사 실기 필답노트 · Ver.${typeof APP_VERSION!=="undefined"?APP_VERSION:""}`, W/2, H-28);
+  ctx.fillText(`${appTitle} · Ver.${typeof APP_VERSION!=="undefined"?APP_VERSION:""}`, W/2, H-46);
+  ctx.fillStyle = C.teal;
+  ctx.font = "600 15px 'IBM Plex Sans KR', sans-serif";
+  ctx.fillText(`🔗 ${shareUrl.replace(/^https?:\/\//, "")}`, W/2, H-20);
   ctx.textAlign = "left";
 
   return canvas;
@@ -5229,7 +5257,7 @@ async function shareQuestionImage(q, withAnswer){
   showShareResultModal({kind:"image", dataUrl, fname, blob});
 }
 async function shareQuestionText(q, withAnswer){
-  const text = buildShareText(q, withAnswer);
+  const text = await buildShareText(q, withAnswer);
   const ok = await copyTextRobust(text);
   if(ok){
     showCopyConfirm("text");
