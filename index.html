@@ -1080,10 +1080,21 @@ try{
     ctx.fillStyle = '#0f3d3e';
     ctx.fillRect(0, 0, size, size);
     ctx.fillStyle = '#d98e3f';
-    ctx.font = 'bold ' + Math.round(size * 0.30) + 'px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(shortMarkOf(typeof EXAM_CONFIG !== "undefined" ? EXAM_CONFIG.markText : null), size / 2, size * 0.42);
+
+    // 메인 글자(예: "건축", "산업안전")는 길이에 따라 폭을 넘지 않도록 폰트 크기를 자동으로 줄인다.
+    // (2글자 기준 30%로 그리면 4글자짜리는 아이콘 밖으로 삐져나가는 문제가 있었음)
+    const mainText = shortMarkOf(typeof EXAM_CONFIG !== "undefined" ? EXAM_CONFIG.markText : null);
+    const maxTextWidth = size * 0.86; // 좌우 여백 확보
+    let fontPct = 0.30;
+    ctx.font = 'bold ' + Math.round(size * fontPct) + 'px sans-serif';
+    while (ctx.measureText(mainText).width > maxTextWidth && fontPct > 0.12) {
+      fontPct -= 0.02;
+      ctx.font = 'bold ' + Math.round(size * fontPct) + 'px sans-serif';
+    }
+    ctx.fillText(mainText, size / 2, size * 0.42);
+
     ctx.font = 'bold ' + Math.round(size * 0.13) + 'px sans-serif';
     ctx.fillStyle = '#f4ede0';
     ctx.fillText('필답노트', size / 2, size * 0.66);
