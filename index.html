@@ -884,20 +884,39 @@
 .comment-modal-overlay{
   position:fixed; inset:0;
   background:rgba(0,0,0,0.45);
-  display:flex; align-items:flex-end; justify-content:center;
+  display:flex; align-items:center; justify-content:center;
   z-index:1000;
+  padding:20px;
 }
 .comment-modal-card{
   background:var(--paper);
-  border-radius:18px 18px 0 0;
-  padding:18px 18px 22px;
-  max-width:520px;
+  border-radius:18px;
+  padding:20px 22px 24px;
+  max-width:640px;
   width:100%;
-  max-height:80vh;
+  max-height:82vh;
   display:flex;
   flex-direction:column;
+  box-shadow:0 20px 60px rgba(0,0,0,0.3);
 }
 .comment-modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;}
+.corner-emoji-badge{
+  position:absolute;
+  top:-4px; right:-4px;
+  min-width:16px;
+  height:16px;
+  padding:0 3px;
+  border-radius:999px;
+  background:#d64545;
+  color:#fff;
+  font-size:9.5px;
+  font-weight:800;
+  line-height:16px;
+  text-align:center;
+  align-items:center;
+  justify-content:center;
+  border:1.5px solid #fff;
+}
 .comment-modal-header h3{margin:0;font-size:16px;color:var(--deep);}
 .comment-modal-close{border:none;background:none;font-size:16px;color:var(--muted);cursor:pointer;padding:4px 8px;}
 .comment-modal-desc{font-size:12px;color:var(--muted);margin:2px 0 10px;}
@@ -3891,7 +3910,7 @@ function renderCard(){
         <button class="corner-emoji-btn" id="starBtn" title="즐겨찾기">☆</button>
         <button class="corner-emoji-btn" id="aiHelpBtn" title="AI 해설 보기">🤖</button>
         <button class="corner-emoji-btn" id="shareBtn" title="문제 공유하기">📤</button>
-        ${typeof supabaseClient !== "undefined" && supabaseClient ? `<button class="corner-emoji-btn" id="commentBtn" title="오답의견">💬</button>` : ""}
+        ${typeof supabaseClient !== "undefined" && supabaseClient ? `<button class="corner-emoji-btn" id="commentBtn" title="오답의견" style="position:relative;">💬<span id="commentCountBadge" class="corner-emoji-badge" style="display:none;"></span></button>` : ""}
         <button class="corner-emoji-btn" id="editBtn" title="수정">✏️</button>
       </div>
       <div class="card-box" id="cardBox">
@@ -3993,7 +4012,10 @@ function renderCard(){
   document.getElementById("aiHelpBtn").addEventListener("click", ()=> openAiHelpModal(q));
   document.getElementById("shareBtn").addEventListener("click", ()=> openShareOptionsModal(q));
   const commentBtnEl = document.getElementById("commentBtn");
-  if(commentBtnEl) commentBtnEl.addEventListener("click", ()=> openCommentModal(q.id));
+  if(commentBtnEl){
+    commentBtnEl.addEventListener("click", ()=> openCommentModal(q.id));
+    updateCommentCountBadge(q.id);
+  }
   const starDupTagBtnEl = document.getElementById("starDupTagBtn");
   if(starDupTagBtnEl) starDupTagBtnEl.addEventListener("click", ()=> openDuplicateModal(q.id));
   const voiceModeBtnEl = document.getElementById("voiceModeBtn");
@@ -4560,6 +4582,30 @@ function openAiHelpModal(q){
 function escapeCommentHtml(s){
   return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 }
+/* 💬 아이콘 위에 오답의견 개수를 작은 숫자 뱃지로 표시(0개면 뱃지 자체를 숨김). */
+async function updateCommentCountBadge(questionId){
+  if(typeof supabaseClient === "undefined" || !supabaseClient) return;
+  const badge = document.getElementById("commentCountBadge");
+  if(!badge) return;
+  try{
+    const { count, error } = await supabaseClient
+      .from("question_comments")
+      .select("id", { count: "exact", head: true })
+      .eq("cert_id", typeof CERT_ID !== "undefined" ? CERT_ID : "")
+      .eq("question_id", questionId);
+    if(error) throw error;
+    const badgeNowEl = document.getElementById("commentCountBadge"); // 비동기 대기 중 카드가 넘어갔을 수 있어 재확인
+    if(!badgeNowEl) return;
+    if(count > 0){
+      badgeNowEl.textContent = count > 99 ? "99+" : String(count);
+      badgeNowEl.style.display = "flex";
+    } else {
+      badgeNowEl.style.display = "none";
+    }
+  }catch(e){
+    console.warn("오답의견 개수 조회 실패:", e.message);
+  }
+}
 async function openCommentModal(questionId){
   if(typeof supabaseClient === "undefined" || !supabaseClient) return;
   document.querySelectorAll(".comment-modal-overlay").forEach(o=>o.remove());
@@ -4622,6 +4668,7 @@ async function openCommentModal(questionId){
           if(!confirm("이 의견을 삭제할까요?")) return;
           await supabaseClient.from("question_comments").delete().eq("id", btn.dataset.id);
           loadComments();
+          updateCommentCountBadge(questionId);
         });
       });
     }catch(e){
@@ -4647,6 +4694,7 @@ async function openCommentModal(questionId){
       if(error) throw error;
       input.value = "";
       loadComments();
+      updateCommentCountBadge(questionId);
     }catch(e){
       alert("등록 실패: " + e.message);
     }finally{
