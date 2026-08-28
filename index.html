@@ -748,7 +748,7 @@
 
   /* ---- 이미지 자르기 도구 ---- */
   .crop-box{max-width:520px;}
-  .crop-canvas-wrap{position:relative;width:100%;max-height:60vh;overflow:hidden;background:#111;border-radius:8px;touch-action:none;user-select:none;}
+  .crop-canvas-wrap{position:relative;width:100%;max-height:60vh;overflow-y:auto;overflow-x:hidden;background:#111;border-radius:8px;touch-action:pan-y;user-select:none;}
   .crop-canvas-wrap img{width:100%;display:block;pointer-events:none;user-select:none;}
   .crop-rect{position:absolute;border:2px dashed #fff;background:rgba(255,255,255,0.15);box-shadow:0 0 0 2000px rgba(0,0,0,0.45);cursor:move;}
   .crop-handle{
@@ -7196,8 +7196,12 @@ function openCropTool(src, onApply){
   imgEl.addEventListener("load", drawRect);
   drawRect();
 
+  // 좌표는 wrap(보이는 영역)이 아니라 imgEl(이미지 자체)의 실제 렌더링 크기를 기준으로 계산한다.
+  // 세로로 긴 이미지가 wrap의 max-height(60vh)를 넘어 overflow로 잘려 보일 때, wrap 기준으로
+  // 계산하면 "보이는 부분"만을 이미지 전체인 것처럼 착각해서 선택 영역이 크게 어긋나는 문제가 있었음
+  // (특히 좁은 화면일수록 이미지가 상대적으로 더 길게 렌더링되어 잘 드러남).
   const ptFromEvent = (e)=>{
-    const r = wrap.getBoundingClientRect();
+    const r = imgEl.getBoundingClientRect();
     const cx = (e.touches ? e.touches[0].clientX : e.clientX);
     const cy = (e.touches ? e.touches[0].clientY : e.clientY);
     return { x: Math.min(Math.max((cx-r.left)/r.width,0),1), y: Math.min(Math.max((cy-r.top)/r.height,0),1) };
@@ -7210,14 +7214,20 @@ function openCropTool(src, onApply){
 
   const onDown = (e)=>{
     const handle = e.target.closest && e.target.closest(".crop-handle");
+    const isTouch = e.type.startsWith("touch");
     startPt = ptFromEvent(e);
     startRect = {...rect};
     if(handle){
       mode = handle.dataset.h;
     } else if(e.target === rectEl){
       mode = "move";
+    } else if(isTouch){
+      // 터치에서는 박스 바깥(어두운 영역)을 누르면 세로 스크롤로 취급해서 그대로 흘려보낸다.
+      // (긴 이미지를 손가락으로 내려서 아래쪽도 볼 수 있어야 하므로, 여기서 새 박스를 시작하면
+      // 스크롤 제스처와 충돌한다. 새로 그리고 싶으면 '전체 선택' 후 핸들로 조정하면 됨)
+      return;
     } else {
-      // 박스 바깥(회색 어두운 영역)을 누르면 그 지점부터 새로 그리기 시작
+      // 마우스: 박스 바깥을 누르면 그 지점부터 새로 그리기 시작
       mode = "new";
       rect = {x:startPt.x, y:startPt.y, w:0, h:0};
       drawRect();
