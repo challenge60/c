@@ -5258,10 +5258,23 @@ async function buildQuestionShareCanvas(q, withAnswer){
   ctx.fillStyle = C.amber;
   ctx.fillRect(0, headerH-6, W, 6);
 
+  // "My도전"은 앱 곳곳에서 쓰는 것과 같은 amber 배지로, "Note"는 옆에 일반 텍스트로 그린다
+  ctx.font = "800 20px 'IBM Plex Sans KR', sans-serif";
+  const badgeText = "My도전";
+  const badgeTextW = ctx.measureText(badgeText).width;
+  const badgePadX = 12, badgeH = 30;
+  const badgeY = 44 - 21; // 기존 베이스라인(44) 기준으로 배지를 세로 중앙 정렬
+  shareRoundRect(ctx, PAD, badgeY, badgeTextW + badgePadX*2, badgeH, 7);
+  ctx.fillStyle = C.amber;
+  ctx.fill();
+  ctx.fillStyle = C.deep;
+  ctx.textBaseline = "middle";
+  ctx.fillText(badgeText, PAD + badgePadX, badgeY + badgeH/2 + 1);
+
   ctx.fillStyle = "#ffffff";
-  ctx.font = "700 22px 'IBM Plex Sans KR', sans-serif";
+  ctx.font = "700 20px 'IBM Plex Sans KR', sans-serif";
   ctx.textBaseline = "alphabetic";
-  ctx.fillText(appTitle, PAD, 44);
+  ctx.fillText("Note", PAD + badgeTextW + badgePadX*2 + 10, 44);
 
   ctx.font = "400 15px 'IBM Plex Sans KR', sans-serif";
   ctx.fillStyle = "rgba(255,255,255,0.85)";
@@ -7286,7 +7299,7 @@ document.addEventListener("click", (e)=>{
 (function(){
   try{
     const qid = new URLSearchParams(location.search).get("q");
-    if(!qid) return;
+    if(!qid){ render(); return; }
     const target = getData().find(x => String(x.id) === qid);
     if(target){
       startQueue([target], "single", "바로가기", "home");
