@@ -5779,8 +5779,9 @@ function renderSettings(){
       <div class="settings-row" style="margin-top:6px;"><div class="label">원본 내장 데이터로 초기화</div><button id="restoreSample">초기화</button></div>
       <p style="font-size:0.76rem;color:var(--muted);margin-top:2px;">수정한 내용이 모두 사라지고 앱이 원래 내장하고 있던 문제 데이터로 되돌아갑니다.</p>
 
+      ${(typeof supabaseClient === "undefined" || !supabaseClient || window.isAdmin) ? `
       <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line);">
-        <div class="label" style="font-weight:700;margin-bottom:6px;">학습데이터만 백업</div>
+        <div class="label" style="font-weight:700;margin-bottom:6px;">학습데이터만 백업${typeof supabaseClient !== "undefined" && supabaseClient ? ' <span style="font-size:0.68rem;color:var(--amber);font-weight:800;">(관리자)</span>' : ''}</div>
         <p style="font-size:0.76rem;color:var(--muted);">수정한 내용이 포함된 문제 데이터를 파일로 저장합니다.</p>
         <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:0.85rem;">
           <input type="checkbox" id="includeProgressChkBackup">
@@ -5792,10 +5793,16 @@ function renderSettings(){
       </div>
 
       <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line);">
-        <div class="label" style="font-weight:700;margin-bottom:6px;">외부데이터 복원</div>
+        <div class="label" style="font-weight:700;margin-bottom:6px;">외부데이터 복원${typeof supabaseClient !== "undefined" && supabaseClient ? ' <span style="font-size:0.68rem;color:var(--amber);font-weight:800;">(관리자)</span>' : ''}</div>
         <p style="font-size:0.76rem;color:var(--muted);">다른 사람이 "학습데이터만 백업"으로 내려받은 파일을 선택하면, 그 사람의 데이터로 전환됩니다.</p>
         <input type="file" accept="application/json" id="backupFile" style="margin-top:10px;">
       </div>
+      ` : `
+      <p style="font-size:0.74rem;color:var(--muted);margin-top:14px;padding-top:14px;border-top:1px solid var(--line);">
+        학습기록은 이 계정으로 클라우드에 자동 저장되고 있어서, 별도의 파일 백업·복원 메뉴는
+        일반 사용자에게는 숨겨져 있어요. (관리자 계정에서만 노출됩니다)
+      </p>
+      `}
     </div>
 
     ${isAdminUnlocked ? `
