@@ -5673,7 +5673,7 @@ function startExam(){
     state.examTimeLeft--;
     const t = document.getElementById("examTimerDisplay");
     if(t) t.textContent = formatTime(state.examTimeLeft);
-    if(state.examTimeLeft % 5 === 0) saveExamSession();
+    if(state.examTimeLeft % 60 === 0) saveExamSession(); // 60초마다 자동저장(예전엔 5초라 동기화 뱃지가 너무 잦았음)
     if(state.examTimeLeft<=0){ clearInterval(state.examTimer); submitExam(); }
   },1000);
 }
@@ -5693,7 +5693,7 @@ function resumeExam(){
     state.examTimeLeft--;
     const t = document.getElementById("examTimerDisplay");
     if(t) t.textContent = formatTime(state.examTimeLeft);
-    if(state.examTimeLeft % 5 === 0) saveExamSession();
+    if(state.examTimeLeft % 60 === 0) saveExamSession(); // 60초마다 자동저장(예전엔 5초라 동기화 뱃지가 너무 잦았음)
     if(state.examTimeLeft<=0){ clearInterval(state.examTimer); submitExam(); }
   },1000);
 }
