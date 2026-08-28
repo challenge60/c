@@ -1465,10 +1465,10 @@ function withEdits(q){
 }
 
 /* ---- 관리자 전용: 문제 수정사항을 전체 사용자 기본값으로 발행(publish) ----
-   window.isAdmin / window.publishAdminOverride 는 storage.js(허브에서만 로드)가 채워준다.
-   관리자가 아니거나 storage.js가 없는(standalone) 환경에서는 아무 일도 하지 않는다. */
+   window.canPublishOverride / window.publishAdminOverride 는 storage.js(허브에서만 로드)가 채워준다.
+   (관리자뿐 아니라 편집자 등급도 canPublishOverride가 true로 설정됨) */
 async function maybeAskAdminPublish(id, payload){
-  if(typeof window === "undefined" || !window.isAdmin || typeof window.publishAdminOverride !== "function") return;
+  if(typeof window === "undefined" || !window.canPublishOverride || typeof window.publishAdminOverride !== "function") return;
   const ok = confirm(
     "이 수정을 이 문제의 기본값으로 적용할까요?\n\n" +
     "적용하면, 이 문제를 개인적으로 아직 수정하지 않은 모든 사용자에게 이 내용이 보이게 됩니다.\n" +
