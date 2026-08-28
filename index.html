@@ -4935,7 +4935,7 @@ async function buildShareText(q, withAnswer){
     lines.push("※ 이 문제에는 도면·그림이 포함되어 있어 텍스트만으로는 풀 수 없어요. 공유 형식을 '이미지'로 선택해주세요.");
   }
   if(typeof shareShortenUrl === "function"){
-    const shareUrl = await shareShortenUrl(location.origin + location.pathname + "?q=" + encodeURIComponent(q.id));
+    const shareUrl = await shareShortenUrl(buildShareDeepLink(q.id));
     lines.push("");
     lines.push(`🔗 이 문제 바로 보기: ${shareUrl}`);
   }
@@ -5144,6 +5144,23 @@ function shareEnsureFontsReady(){
    안내하고 있어 CORS 문제 없이 클라이언트에서 바로 호출 가능하다. (TinyURL의 옛 api-create.php
    엔드포인트는 폐지되어 더 이상 동작하지 않아 is.gd로 교체함)
    그래도 만약 실패하면(네트워크 오류 등) 원래의 긴 링크를 그대로 쓰도록 안전하게 대체한다. */
+/* 문제 하나로 바로 가는 공유용 주소를 만든다. 외부 단축 서비스에 기대지 않고도 이미 짧아지도록,
+   허브(challenge60.github.io/do/certs/<id>/index.html) 구조에서는 CERTS_REGISTRY의 shortCode를 이용해
+   "challenge60.github.io/do/?q=<shortCode>-<문항ID>" 형태로 줄인다. index.html(허브)이 이 파라미터를
+   보고 실제 자격증 페이지로 리다이렉트해준다(assets/hub.js의 handleShortDeepLinkIfAny 참고).
+   standalone처럼 이 구조가 아니거나 shortCode를 못 찾으면, 기존 방식(현재 페이지 경로 + ?q=)으로 대체한다. */
+function buildShareDeepLink(questionId){
+  const path = location.pathname;
+  const certsIdx = path.indexOf("/certs/");
+  if(certsIdx !== -1 && typeof CERTS_REGISTRY !== "undefined"){
+    const hubRoot = path.slice(0, certsIdx + 1); // 예: "/do/"
+    const certEntry = CERTS_REGISTRY.find(c => c.id === (typeof CERT_ID !== "undefined" ? CERT_ID : null));
+    if(certEntry && certEntry.shortCode){
+      return location.origin + hubRoot + "?q=" + certEntry.shortCode + "-" + questionId;
+    }
+  }
+  return location.origin + path + "?q=" + encodeURIComponent(questionId);
+}
 async function shareShortenUrl(longUrl){
   try{
     // 브라우저가 외부 단축 서비스(is.gd 등)를 직접 호출하면 CORS로 막히는 경우가 있어서,
@@ -5173,7 +5190,7 @@ async function buildQuestionShareCanvas(q, withAnswer){
   const examCfg = (typeof EXAM_CONFIG !== "undefined") ? EXAM_CONFIG : { markText: "", subtitle: "" };
   const appTitle = "My도전 Note";
   const certLine = `${examCfg.markText} ${shortSubOf(examCfg)}`.trim();
-  const shareUrl = await shareShortenUrl(location.origin + location.pathname + "?q=" + encodeURIComponent(q.id));
+  const shareUrl = await shareShortenUrl(buildShareDeepLink(q.id));
   const multiRound = datasetHasMultiRound(getData());
   const label = yearRoundLabel(q, multiRound) + (q.no?`-${q.no}`:"");
   const images = q.images || [];
