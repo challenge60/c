@@ -1058,7 +1058,7 @@ const SAMPLE_DATA = [{"id": "2025-1-01", "year": 2025, "round": 1, "no": 1, "poi
        세 가지 다 파일을 건드릴 때마다 이 주석부터 확인할 것.
    [3] 엔진 수정 후에는 곧바로 배포본을 만들지 말고, 무엇을 고쳤는지 먼저 설명하고
        사용자 컨펌을 받은 뒤에만 배포본(들)을 새로 만든다. */
-const APP_VERSION = "2026.08.28_16.42";
+const APP_VERSION = "2026.08.28_17.13";
 
 /* ============ PWA 설치(앱처럼 구동) ============ */
 try{
@@ -2555,6 +2555,15 @@ function setView(v){
     voicePaused = false;
     voicePhase = null;
     releaseWakeLockNow();
+  }
+  // 모의고사 화면(설정 화면이든, 실제 응시 중이든 state.view는 계속 "exam")을 벗어나는데
+  // 타이머가 아직 돌고 있으면 멈춘다. 안 멈추면 다른 메뉴로 이동해도 백그라운드에서 타이머가
+  // 계속 흐르면서 60초마다 자동저장(동기화 알림)을 반복 트리거하는 문제가 있었음.
+  // 진행상황·남은시간은 이미 저장되어 있어서, 나중에 "이어서 하기"로 정확히 이어서 풀 수 있다.
+  if(state.view === "exam" && v !== "exam" && state.examTimer){
+    clearInterval(state.examTimer);
+    state.examTimer = null;
+    saveExamSession();
   }
   state.view = v;
   document.querySelectorAll("nav.bottom button").forEach(b=>b.classList.toggle("on", b.dataset.view===v));
